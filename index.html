@@ -518,10 +518,9 @@ function workerModal(id){
 }
 function regModal(){
   const cs=sortedCompanies();
-  if(!cs.length){toast('Регистрация пока закрыта: администратор ещё не добавил компании');return;}
   openModal('<form data-form="register" style="display:flex;flex-direction:column;gap:12px"><h2>Регистрация</h2>'+
   fld('gname','Имя и фамилия','<input id="gname" name="name" required autocomplete="name">')+
-  fld('gcomp','Компания','<select id="gcomp" name="companyId">'+cs.map(([cid,c])=>'<option value="'+cid+'">'+esc(c.name)+'</option>').join('')+'</select>')+
+  (cs.length?fld('gcomp','Компания','<select id="gcomp" name="companyId">'+cs.map(([cid,c])=>'<option value="'+cid+'">'+esc(c.name)+'</option>').join('')+'</select>'):'<p class="banner">Компаний пока нет. Сейчас может зарегистрироваться только администратор.</p>')+
   fld('gphone','Телефон','<input id="gphone" name="phone" type="tel" autocomplete="tel">')+
   fld('gemail','Email','<input id="gemail" name="email" type="email" autocapitalize="off" autocomplete="email">')+
   '<p class="muted small">Нужен телефон или email. Лучше указать email: по нему можно восстановить пароль.</p>'+
@@ -695,8 +694,10 @@ const FORM={
     if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return err('Проверьте email');
     if(pass.length<6)return err('Пароль: минимум 6 символов');
     if(pass!==pass2)return err('Пароли не совпадают');
+    const ownerReg=!!email&&OWNER_EMAILS.map(normEmail).includes(email);
+    if(!fd.get('companyId')&&!ownerReg)return err('Компаний пока нет. Попросите администратора добавить их.');
     try{if(phone&&await B.get('logins','p_'+normPhone(phone)))return err('Такой телефон уже зарегистрирован. Попробуйте войти.');}catch(e){return err('Нет связи с сервером');}
-    S.pendingProfile={name,phone,email,companyId:fd.get('companyId')};
+    S.pendingProfile={name,phone,email,companyId:fd.get('companyId')||''};
     try{await B.signUp(email||phoneEmail(phone),pass);closeModal();}
     catch(e){S.pendingProfile=null;const c=String(e&&e.code||'');err(c.includes('email-already')?'Такой '+(email?'email':'телефон')+' уже зарегистрирован. Попробуйте войти.':c.includes('weak')?'Слишком простой пароль':'Не получилось: '+(c||'ошибка'));}
   },
@@ -879,7 +880,7 @@ function onAuthUser(u){
     SRC.users.me=m;mergeSrc();S.profileLoaded=true;
     const prof=m[u.uid];
     if(!prof&&!S.creating){
-      if(S.pendingProfile)createProfile(S.pendingProfile,false);
+      if(S.pendingProfile)createProfile(S.pendingProfile,isOwnerEmail());
       else if(isOwnerEmail())createProfile({name:'Главный админ',email:S.email},true);
     }
     if(first&&prof){first=false;S.view=(myRights()?'admin':'worker');}
