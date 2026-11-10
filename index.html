@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Табель рабочего времени</title>
+<meta name="theme-color" content="#17614f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Табель">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout: one phone-width column, sticky top bar; admin uses tabs over the same column, report table scrolls sideways on its own */
+  --bg:#f2f3ee;
+  --surface:#ffffff;
+  --ink:#18211d;
+  --muted:#5b685f;
+  --line:#dce1d8;
+  --accent:#17614f;
+  --accent-ink:#ffffff;
+  --accent-soft:#e1eee8;
+  --stop:#b0432a;
+  --stop-soft:#f7e3dc;
+  --warn:#8f6200;
+  --warn-soft:#f7edd3;
+  --font-display:"Unbounded","Golos Text",system-ui,sans-serif;
+  --font-body:"Golos Text",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111614; --surface:#19201d; --ink:#e6ebe7; --muted:#99a69e; --line:#2a3430;
+    --accent:#4fb393; --accent-ink:#0b1410; --accent-soft:#1c3029;
+    --stop:#e7826a; --stop-soft:#3a231c; --warn:#e3b452; --warn-soft:#352c16;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111614; --surface:#19201d; --ink:#e6ebe7; --muted:#99a69e; --line:#2a3430;
+  --accent:#4fb393; --accent-ink:#0b1410; --accent-soft:#1c3029;
+  --stop:#e7826a; --stop-soft:#3a231c; --warn:#e3b452; --warn-soft:#352c16;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;overflow-x:hidden;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.45}
+button,input,select,textarea{font:inherit;color:inherit}
+.num,.tnum{font-variant-numeric:tabular-nums}
+.top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.top .in{max-width:760px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}
+.top .in>.pill{order:5;flex-basis:100%;justify-content:center}
+.brand{font-family:var(--font-display);font-weight:700;font-size:17px;letter-spacing:.01em;display:flex;align-items:center;gap:8px}
+.brand i{width:10px;height:10px;border-radius:50%;background:var(--accent);display:inline-block}
+.top .sp{flex:1}
+.wrap{max-width:760px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:14px}
+.wrap>*,.card>*{min-width:0}
+body{overflow-x:hidden}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+h1,h2,h3{margin:0;text-wrap:balance}
+h1{font-family:var(--font-display);font-weight:700;font-size:22px;line-height:1.2}
+h2{font-family:var(--font-display);font-weight:500;font-size:17px}
+h3{font-size:15px;font-weight:600}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+label{font-size:13px;color:var(--muted);font-weight:500}
+input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.field{display:flex;flex-direction:column;gap:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid7{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.grid7 input{padding:9px 4px;text-align:center}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.stop{background:var(--stop);color:#fff;border-color:var(--stop)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--accent);padding:8px 10px;white-space:nowrap}
+.btn.danger{color:var(--stop)}
+.btn.sm{padding:6px 10px;font-size:14px;border-radius:8px}
+.btn.big{width:100%;padding:18px;font-size:19px;border-radius:14px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.row.between{justify-content:space-between}
+.err{color:var(--stop);font-size:14px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 8px;border-radius:99px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.stop{background:var(--stop-soft);color:var(--stop)}
+.pill.grey{background:var(--bg);color:var(--muted);border:1px solid var(--line)}
+.status{display:flex;align-items:center;gap:8px;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+.status.on .dot{background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+@media (prefers-reduced-motion:no-preference){.status.on .dot{animation:pulse 2s infinite}}
+@keyframes pulse{50%{box-shadow:0 0 0 7px transparent}}
+.timer{font-family:var(--font-display);font-weight:700;font-size:40px;line-height:1;font-variant-numeric:tabular-nums}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile b{font-size:21px;font-variant-numeric:tabular-nums;font-weight:700;overflow-wrap:anywhere}
+.tile span{font-size:12px;color:var(--muted)}
+.monthnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.monthnav strong{font-family:var(--font-display);font-weight:500;font-size:16px}
+.day{border-top:1px solid var(--line);padding-top:10px;display:flex;flex-direction:column;gap:6px}
+.day:first-of-type{border-top:0;padding-top:0}
+.shift{display:flex;align-items:center;gap:10px;font-variant-numeric:tabular-nums}
+.shift .t{flex:1}
+.tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:2px}
+.tab{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:8px 14px;font-weight:600;cursor:pointer;white-space:nowrap;font-size:14px}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab .cnt{background:var(--stop);color:#fff;border-radius:99px;padding:0 6px;font-size:11px;margin-left:4px}
+.tablewrap{overflow-x:auto;margin:0 -16px;padding:0 16px}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:9px 8px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:12px;color:var(--muted);font-weight:600}
+tbody tr{cursor:pointer}
+tbody tr:hover td{background:var(--bg)}
+tfoot td{font-weight:700;border-bottom:0}
+.list-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.list-item:first-child{border-top:0}
+.list-item .grow{flex:1;min-width:0}
+.banner{background:var(--warn-soft);color:var(--warn);border-radius:12px;padding:10px 14px;font-size:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.overlay{position:fixed;inset:0;background:rgba(10,15,12,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20;padding:0}
+.overlay[hidden]{display:none}
+.sheet{background:var(--surface);width:100%;max-width:560px;max-height:92%;overflow:auto;border-radius:18px 18px 0 0;padding:18px 16px 22px;display:flex;flex-direction:column;gap:12px}
+@media (min-width:600px){.overlay{align-items:center;padding:16px}.sheet{border-radius:18px}}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:30;max-width:calc(100% - 32px)}
+.toast[hidden]{display:none}
+.empty{color:var(--muted);text-align:center;padding:14px 0;font-size:14px}
+@media (max-width:420px){.tiles{grid-template-columns:1fr 1fr}.tiles .tile:last-child{grid-column:span 2}.timer{font-size:34px}}
+</style>
+</head>
+<body>
+<header class="top"><div class="in" id="top"></div></header>
+<main class="wrap" id="app"><p class="muted">Загрузка…</p></main>
+<div class="overlay" id="modal" hidden></div>
+<div class="toast" id="toast" hidden></div>
+<script type="module">
+/* ====== НАСТРОЙКИ ====== */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyASjL43lIWA3w-40Z942ykP0nyKQpZZWFU",
+  authDomain: "times-app-f7d5a.firebaseapp.com",
+  projectId: "times-app-f7d5a",
+  storageBucket: "times-app-f7d5a.firebasestorage.app",
+  messagingSenderId: "883405412978",
+  appId: "1:883405412978:web:911caeba4be48955e2c0eb"
+};
+const OWNER_EMAILS = ['alina.drecruitment@gmail.com'];
+const FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
+/* ======================= */
+(async function(){
+"use strict";
+const $app=document.getElementById('app'), $top=document.getElementById('top'), $modal=document.getElementById('modal'), $toast=document.getElementById('toast');
+
+/* ---------- helpers ---------- */
+const pad=n=>String(n).padStart(2,'0');
+const monthKey=d=>d.getFullYear()+'-'+pad(d.getMonth()+1);
+const dayKey=ms=>{const d=new Date(ms);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+const toInput=ms=>{const d=new Date(ms);return dayKey(ms)+'T'+pad(d.getHours())+':'+pad(d.getMinutes());};
+const fromInput=v=>{if(!v||v.indexOf('T')<0)return NaN;const [dt,tm]=v.split('T');const [y,m,d]=dt.split('-').map(Number);const [h,mi]=tm.split(':').map(Number);return new Date(y,m-1,d,h,mi).getTime();};
+const hm=ms=>{const t=Math.max(0,Math.round(ms/60000));return Math.floor(t/60)+':'+pad(t%60);};
+const hmH=h=>hm(h*3600000);
+const clock=ms=>{const d=new Date(ms);return pad(d.getHours())+':'+pad(d.getMinutes());};
+const WD=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+const MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const MGEN=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const fmtDay=k=>{const [y,m,d]=k.split('-').map(Number);return d+' '+MGEN[m-1]+', '+WD[new Date(y,m-1,d).getDay()];};
+const fmtDT=ms=>{const d=new Date(ms);return d.getDate()+' '+MGEN[d.getMonth()]+' '+clock(ms);};
+const nf=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0});
+const money=n=>nf.format(Math.round(n))+' ₪';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+const digits=s=>String(s||'').replace(/\D/g,'');
+const normEmail=s=>String(s||'').trim().toLowerCase();
+const normPhone=p=>{let d=digits(p);if(d.startsWith('972'))d='0'+d.slice(3);return d;};
+const phoneEmail=p=>'p'+normPhone(p)+'@phone.tabel-app.com';
+const isPhoneEmail=e=>/@phone\.tabel-app\.com$/.test(String(e||''));
+function loginKey(v){v=String(v||'').trim();const d=digits(v);if(d.length>=7)return 'p_'+normPhone(v);if(/^\d{1,6}$/.test(v))return 'c_'+v.padStart(4,'0');return null;}
+function findDup(field,val,exceptId){if(!val)return null;return Object.entries(S.workers).find(([k,w])=>k!==exceptId&&(field==='phone'?normPhone(w.phone)===normPhone(val):normEmail(w.email)===normEmail(val)));}
+const isPendingReg=w=>w.status==='pending';
+const monthLabel=k=>{const [y,m]=k.split('-').map(Number);return MONTHS[m-1]+' '+y;};
+const shiftMonth=(k,dir)=>{const [y,m]=k.split('-').map(Number);return monthKey(new Date(y,m-1+dir,1));};
+const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}catch(e){}}};
+
+const DEFAULT_RULES={norm:8,ot1Hours:2,ot1:125,ot2:150,day:[100,100,100,100,100,125,150],breakMin:0};
+function rulesOf(c){
+  const r=Object.assign({},DEFAULT_RULES,(c&&c.rules)||{});
+  if(!Array.isArray(r.day)||r.day.length!==7)r.day=DEFAULT_RULES.day.slice();
+  ['norm','ot1Hours','ot1','ot2','breakMin'].forEach(k=>{r[k]=Number(r[k]);if(!isFinite(r[k]))r[k]=DEFAULT_RULES[k];});
+  r.day=r.day.map((v,i)=>isFinite(Number(v))&&Number(v)>0?Number(v):DEFAULT_RULES.day[i]);
+  return r;
+}
+
+/* ---------- state ---------- */
+const S={
+  ready:false,slow:false,error:'',demo:false,uid:null,email:'',profileLoaded:false,busy:false,
+  companies:{},workers:{},shifts:{},requests:{},
+  view:'start',me:null,asAdminPreview:false,
+  tab:'now',month:monthKey(new Date()),repCompany:'all',repWorker:null,
+  login:{id:'',pin:''},loginErr:''
+};
+let B=null;
+const isOwnerEmail=()=>!!S.email&&OWNER_EMAILS.map(normEmail).includes(S.email);
+
+/* ---------- pay calculation ---------- */
+function calcMonth(wid,month){
+  const w=S.workers[wid]||{};const r=rulesOf(S.companies[w.companyId]);const rate=Number(w.rate)||0;
+  const days={};let open=null;
+  for(const id in S.shifts){
+    const s=S.shifts[id];if(s.workerId!==wid)continue;
+    if(!s.end&&(!open||s.start>open.start))open=Object.assign({id},s);
+    const k=dayKey(s.start);if(k.slice(0,7)!==month)continue;
+    (days[k]=days[k]||{key:k,shifts:[]}).shifts.push(Object.assign({id},s));
+  }
+  const out={days:[],totalH:0,otH:0,pay:0,buckets:{},open,rate};
+  Object.keys(days).sort().reverse().forEach(k=>{
+    const d=days[k];d.shifts.sort((a,b)=>a.start-b.start);
+    let ms=0;d.shifts.forEach(s=>{if(s.end&&s.end>s.start)ms+=s.end-s.start;});
+    let H=ms/3600000;if(r.breakMin>0&&H>6)H=Math.max(0,H-r.breakMin/60);
+    const wd=new Date(d.shifts[0].start).getDay();const dr=r.day[wd];
+    const normal=Math.min(H,r.norm),o1=Math.min(Math.max(H-r.norm,0),r.ot1Hours),o2=Math.max(H-r.norm-r.ot1Hours,0);
+    d.buckets={};d.pay=0;
+    [[normal,dr],[o1,Math.max(dr,r.ot1)],[o2,Math.max(dr,r.ot2)]].forEach(([h,p])=>{
+      if(h<=0)return;d.buckets[p]=(d.buckets[p]||0)+h;out.buckets[p]=(out.buckets[p]||0)+h;d.pay+=h*rate*p/100;
+    });
+    d.H=H;d.ot=o1+o2;d.dayRate=dr;out.totalH+=H;out.otH+=o1+o2;out.pay+=d.pay;out.days.push(d);
+  });
+  return out;
+}
+const openShiftOf=wid=>{let o=null;for(const id in S.shifts){const s=S.shifts[id];if(s.workerId===wid&&!s.end&&(!o||s.start>o.start))o=Object.assign({id},s);}return o;};
+const roleOf=w=>(w&&(w.role==='manager'||w.role==='super'))?w.role:'worker';
+function rightsOf(w){const r=roleOf(w);if(r==='worker'||w.active===false||w.status!=='active')return null;return r==='super'?{all:true,roles:true,set:null,role:r}:{all:false,roles:false,set:new Set(Array.isArray(w.manages)?w.manages:[]),role:r};}
+function myRights(){
+  if(!S.uid)return null;
+  if(isOwnerEmail())return {all:true,roles:true,owner:true,set:null,role:'owner'};
+  return S.workers[S.uid]?rightsOf(S.workers[S.uid]):null;
+}
+function adm(){
+  if(S.asAdminPreview&&S.me)return rightsOf(S.workers[S.me]||{});
+  return myRights();
+}
+const inScope=cid=>{const a=adm();return !!a&&(a.all||a.set.has(cid));};
+const wScope=wid=>{const w=S.workers[wid];return !!w&&inScope(w.companyId);};
+const scopedCompanies=()=>sortedCompanies().filter(([id])=>inScope(id));
+const pendingRegs=()=>Object.entries(S.workers).filter(([,w])=>isPendingReg(w)&&inScope(w.companyId));
+const managersOf=cid=>Object.values(S.workers).filter(w=>roleOf(w)==='manager'&&Array.isArray(w.manages)&&w.manages.includes(cid)&&w.active!==false);
+const rolePill=w=>{const r=roleOf(w);if(r==='super')return ' <span class="pill">главный админ</span>';if(r==='manager')return ' <span class="pill">старший</span>';return '';};
+const pending=()=>Object.entries(S.requests).filter(([,r])=>r.status==='pending'&&wScope(r.workerId));
+const companyName=id=>(S.companies[id]&&S.companies[id].name)||'Без компании';
+const sortedCompanies=()=>Object.entries(S.companies).sort((a,b)=>String(a[1].name).localeCompare(String(b[1].name),'ru'));
+const sortedWorkers=()=>Object.entries(S.workers).sort((a,b)=>String(a[1].code).localeCompare(String(b[1].code)));
+
+/* ---------- data layer ---------- */
+const put=(col,id,data)=>B.put(col==='workers'?'users':col,id,data);
+const patch=(col,id,data)=>B.patch(col==='workers'?'users':col,id,data);
+const remove=(col,id)=>B.remove(col==='workers'?'users':col,id);
+const newId=col=>B.newId(col);
+function errText(e){
+  const c=String(e&&e.code||'');
+  if(c.includes('permission-denied'))return 'Нет прав на это действие.';
+  if(c.includes('unavailable')||c.includes('network'))return 'Нет связи с сервером. Проверьте интернет.';
+  return 'Не сохранилось, попробуйте ещё раз.';
+}
+async function safe(fn,okMsg){
+  try{await fn();if(okMsg)toast(okMsg);return true;}
+  catch(e){console.error(e);toast(errText(e));return false;}
+}
+let toastT=null;
+function toast(msg){$toast.textContent=msg;$toast.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{$toast.hidden=true;},3200);}
+
+/* ---------- views ---------- */
+function topBar(){
+  let right='';
+  const r=myRights();
+  if(S.asAdminPreview){
+    right='<button class="btn ghost" data-act="backAdmin">← Выйти из просмотра</button>';
+  }else if(S.uid){
+    if(S.view==='worker'&&r)right+='<button class="btn ghost" data-act="goAdmin">Админ-панель</button>';
+    if(S.view==='admin'&&r&&S.workers[S.uid]&&S.workers[S.uid].companyId)right+='<button class="btn ghost" data-act="myTable">Мой табель</button>';
+    right+='<button class="btn ghost" data-act="logout">Выйти</button>';
+  }
+  return '<div class="brand"><i aria-hidden="true"></i>Табель</div>'+(S.demo?'<span class="pill warn">Демо: данные не сохраняются</span>':'')+'<div class="sp"></div>'+right;
+}
+
+function startView(){
+  let h='';
+  if(S.demo)h+='<div class="banner">Демо-режим: сайт ещё не подключён к базе. Войдите как <b>admin@demo.ru</b>, пароль <b>123456</b>.</div>';
+  h+='<section class="card"><h1>Отметка рабочего времени</h1><p class="muted">Войдите по ID, телефону или email.</p>'+
+  '<form data-form="login" class="card" style="padding:0;border:0;gap:10px">'+
+  '<div class="field"><label for="lid">ID, телефон или email</label><input id="lid" data-bind="id" autocomplete="username" autocapitalize="off" placeholder="0001" value="'+esc(S.login.id)+'"></div>'+
+  '<div class="field"><label for="lpin">Пароль</label><input id="lpin" data-bind="pin" type="password" autocomplete="current-password" value="'+esc(S.login.pin)+'"></div>'+
+  (S.loginErr?'<p class="err">'+esc(S.loginErr)+'</p>':'')+
+  '<button class="btn primary big" type="submit"'+(S.busy?' disabled':'')+'>'+(S.busy?'Входим…':'Войти')+'</button></form>'+
+  '<div class="row"><button class="btn ghost" data-act="forgot">Забыли пароль?</button></div>'+
+  '<div class="row between" style="border-top:1px solid var(--line);padding-top:12px"><span class="muted">Первый раз здесь?</span><button class="btn" data-act="regForm">Зарегистрироваться</button></div></section>';
+  return h;
+}
+function profileFormView(){
+  const cs=sortedCompanies();
+  return '<section class="card"><h1>Почти готово</h1><p class="muted">Заполните данные, чтобы закончить регистрацию.</p>'+
+  '<form data-form="profile" style="display:flex;flex-direction:column;gap:12px">'+
+  fld('pname','Имя и фамилия','<input id="pname" name="name" required autocomplete="name">')+
+  fld('pcomp','Компания','<select id="pcomp" name="companyId">'+cs.map(([cid,c])=>'<option value="'+cid+'">'+esc(c.name)+'</option>').join('')+'</select>')+
+  fld('pphone','Телефон','<input id="pphone" name="phone" type="tel" autocomplete="tel">')+
+  '<p class="err" id="perr"></p><button class="btn primary" type="submit">Готово</button></form></section>';
+}
+function statusView(){
+  const w=S.workers[S.uid]||{};
+  if(w.status==='pending')return '<section class="card"><h1>Заявка на проверке</h1><p>Ваш ID: <b class="tnum" style="font-size:22px">'+esc(w.code)+'</b></p><p class="muted">Старший или администратор скоро подтвердит регистрацию. Страница обновится сама.</p></section>';
+  if(w.status==='rejected')return '<section class="card"><h1>Регистрация отклонена</h1><p class="muted">Если это ошибка, обратитесь к старшему своей компании.</p></section>';
+  return '<section class="card"><h1>Доступ отключён</h1><p class="muted">Обратитесь к старшему своей компании.</p></section>';
+}
+
+function plural(n,a,b,c){const m10=n%10,m100=n%100;if(m10===1&&m100!==11)return a;if(m10>=2&&m10<=4&&(m100<10||m100>=20))return b;return c;}
+
+function monthNav(){
+  return '<div class="monthnav"><button class="btn sm" data-act="month" data-arg="-1" aria-label="Предыдущий месяц">←</button><strong>'+monthLabel(S.month)+'</strong><button class="btn sm" data-act="month" data-arg="1" aria-label="Следующий месяц">→</button></div>';
+}
+function bucketPills(b){
+  return Object.keys(b).map(Number).sort((x,y)=>x-y).map(p=>'<span class="pill'+(p>100?' warn':' grey')+'">'+p+'% · '+hmH(b[p])+'</span>').join(' ');
+}
+
+function workerView(){
+  const wid=S.me,w=S.workers[wid],m=calcMonth(wid,S.month),open=openShiftOf(wid);
+  let h='';
+  if(S.asAdminPreview)h+='<div class="banner">Вы смотрите приложение глазами работника. Кнопки работают по-настоящему.</div>';
+  else if(rightsOf(w))h+='<div class="banner" style="background:var(--accent-soft);color:var(--accent)">Вы '+(roleOf(w)==='super'?'главный админ':'старший')+'.<button class="btn sm" data-act="goAdmin">Открыть админ-панель</button></div>';
+  h+='<section class="card"><div class="row between"><div><h1>'+esc(w.name)+'</h1><p class="muted small">'+esc(companyName(w.companyId))+' · ID '+esc(w.code)+'</p></div></div>';
+  if(open){
+    h+='<div class="status on"><span class="dot"></span>На смене с '+clock(open.start)+(dayKey(open.start)!==dayKey(Date.now())?' ('+fmtDay(dayKey(open.start))+')':'')+'</div>'+
+    '<div class="timer" data-since="'+open.start+'">'+hm(Date.now()-open.start)+'</div>'+
+    '<button class="btn stop big" data-act="clockOut" data-arg="'+open.id+'">Закончить смену</button>';
+  }else{
+    h+='<div class="status"><span class="dot"></span>Сейчас не на смене</div>'+
+    '<button class="btn primary big" data-act="clockIn">Начать смену</button>';
+  }
+  h+='</section>';
+  h+=monthNav();
+  h+='<div class="tiles"><div class="tile"><span>Отработано</span><b>'+hmH(m.totalH)+'</b></div><div class="tile"><span>Из них сверхурочно</span><b>'+hmH(m.otH)+'</b></div><div class="tile"><span>К выплате, примерно</span><b>'+(m.rate?money(m.pay):'—')+'</b></div></div>';
+  if(Object.keys(m.buckets).length)h+='<div class="row">'+bucketPills(m.buckets)+'</div>';
+  h+='<section class="card"><div class="row between"><h2>Мои смены</h2><button class="btn sm" data-act="reqAdd">Забыл отметиться</button></div>';
+  if(!m.days.length)h+='<p class="empty">В этом месяце смен пока нет.</p>';
+  m.days.forEach(d=>{
+    h+='<div class="day"><div class="row between"><h3>'+fmtDay(d.key)+'</h3><span class="tnum"><b>'+hmH(d.H)+'</b>'+(m.rate?' · '+money(d.pay):'')+'</span></div>';
+    d.shifts.forEach(s=>{
+      const req=Object.values(S.requests).some(r=>r.shiftId===s.id&&r.status==='pending');
+      h+='<div class="shift"><span class="t">'+clock(s.start)+' – '+(s.end?clock(s.end):'идёт')+(s.end?' <span class="muted">('+hm(s.end-s.start)+')</span>':'')+'</span>'+
+      (req?'<span class="pill warn">на проверке</span>':(s.end?'<button class="btn sm ghost" data-act="reqEdit" data-arg="'+s.id+'">Исправить</button>':''))+'</div>';
+    });
+    const extra=Object.keys(d.buckets).map(Number).filter(p=>p>100);
+    if(extra.length)h+='<div class="row">'+extra.map(p=>'<span class="pill warn">'+p+'% · '+hmH(d.buckets[p])+'</span>').join('')+'</div>';
+    h+='</div>';
+  });
+  h+='</section>';
+  const reqs=Object.entries(S.requests).filter(([,r])=>r.workerId===wid).sort((a,b)=>b[1].createdAt-a[1].createdAt).slice(0,8);
+  if(reqs.length){
+    h+='<section class="card"><h2>Мои запросы</h2>'+reqs.map(([,r])=>'<div class="list-item"><div class="grow"><div>'+(r.type==='add'?'Добавить смену':'Исправить смену')+'</div><div class="muted small tnum">'+fmtDT(r.start)+' – '+clock(r.end)+'</div></div>'+statusPill(r.status)+'</div>').join('')+'</section>';
+  }
+  return h;
+}
+function statusPill(s){return s==='approved'?'<span class="pill">Одобрено</span>':s==='rejected'?'<span class="pill stop">Отклонено</span>':'<span class="pill warn">Ждёт ответа</span>';}
+
+function adminView(){
+  const a=adm(),n=pending().length;
+  const tabs=[['now','Сейчас',''],['report','Отчёт',''],['requests','Запросы',n],['workers','Работники',pendingRegs().length],['companies','Компании','']];
+  let h='<div><h1>Админ-панель</h1>'+(a.all?'':'<p class="muted small">Ваши компании: '+(scopedCompanies().map(([,c])=>esc(c.name)).join(', ')||'не назначены')+'</p>')+'</div><nav class="tabs" role="tablist">'+tabs.map(([k,l,c])=>'<button class="tab" role="tab" aria-selected="'+(S.tab===k)+'" data-act="tab" data-arg="'+k+'">'+l+(c?'<span class="cnt">'+c+'</span>':'')+'</button>').join('')+'</nav>';
+  if(a.all&&!Object.keys(S.companies).length&&S.tab!=='companies')h+='<div class="banner">Начните с вкладки «Компании»: добавьте свои компании, потом работников.<button class="btn sm" data-act="tab" data-arg="companies">Перейти</button></div>';
+  h+=({now:adminNow,report:adminReport,requests:adminRequests,workers:adminWorkers,companies:adminCompanies}[S.tab]||adminNow)();
+  return h;
+}
+
+function adminNow(){
+  const open=Object.entries(S.shifts).filter(([,s])=>!s.end&&wScope(s.workerId)).sort((a,b)=>a[1].start-b[1].start);
+  let h='<section class="card"><div class="row between"><h2>Сейчас на смене</h2><span class="pill">'+open.length+'</span></div>';
+  if(!open.length)h+='<p class="empty">Никого нет на смене.</p>';
+  open.forEach(([id,s])=>{const w=S.workers[s.workerId]||{};
+    h+='<div class="list-item"><div class="grow"><div><b>'+esc(w.name||'?')+'</b> <span class="muted small">'+esc(w.code||'')+'</span></div><div class="muted small">'+esc(companyName(s.companyId||w.companyId))+' · с '+fmtDT(s.start)+'</div></div><span class="tnum" data-since="'+s.start+'">'+hm(Date.now()-s.start)+'</span><button class="btn sm" data-act="adminClose" data-arg="'+id+'">Закрыть</button></div>';
+  });
+  h+='</section>';
+  const n=pending().length;
+  if(n)h+='<section class="card"><div class="row between"><p><b>'+n+'</b> '+plural(n,'запрос ждёт','запроса ждут','запросов ждут')+' вашего решения</p><button class="btn sm primary" data-act="tab" data-arg="requests">Открыть</button></div></section>';
+  return h;
+}
+
+function reportRows(){
+  if(S.repCompany!=='all'&&!inScope(S.repCompany))S.repCompany='all';
+  return sortedWorkers().filter(([,w])=>!isPendingReg(w)&&inScope(w.companyId)&&(S.repCompany==='all'||w.companyId===S.repCompany)).map(([id,w])=>({id,w,m:calcMonth(id,S.month)}));
+}
+function adminReport(){
+  if(S.repWorker&&S.workers[S.repWorker]&&wScope(S.repWorker))return adminWorkerDetail(S.repWorker);
+  const rows=reportRows();
+  const pcts=[...new Set(rows.flatMap(r=>Object.keys(r.m.buckets).map(Number)))].sort((a,b)=>a-b);
+  if(!pcts.includes(100))pcts.unshift(100);
+  let h=monthNav()+'<div class="row"><div class="field" style="flex:1;min-width:180px"><label for="repc">Компания</label><select id="repc" data-change="repCompany"><option value="all">'+(adm().all?'Все компании':'Все мои компании')+'</option>'+
+  scopedCompanies().map(([id,c])=>'<option value="'+id+'"'+(S.repCompany===id?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></div>'+
+  '<button class="btn" data-act="export" style="align-self:flex-end">Скачать для Excel</button></div>';
+  const tot={H:0,pay:0,b:{}};
+  h+='<section class="card"><h2>Часы и зарплата</h2><p class="muted small">Нажмите на работника, чтобы увидеть и исправить его смены.</p><div class="tablewrap"><table><thead><tr><th>Работник</th><th>Часы</th>'+pcts.map(p=>'<th>'+p+'%</th>').join('')+'<th>Сумма</th></tr></thead><tbody>';
+  if(!rows.length)h+='<tr><td colspan="'+(pcts.length+3)+'" class="empty">Нет работников</td></tr>';
+  rows.forEach(({id,w,m})=>{
+    tot.H+=m.totalH;tot.pay+=m.pay;pcts.forEach(p=>{tot.b[p]=(tot.b[p]||0)+(m.buckets[p]||0);});
+    h+='<tr data-act="repWorker" data-arg="'+id+'"><td><b>'+esc(w.name)+'</b><br><span class="muted small">'+esc(w.code)+(S.repCompany==='all'?' · '+esc(companyName(w.companyId)):'')+'</span></td><td>'+hmH(m.totalH)+'</td>'+
+    pcts.map(p=>'<td>'+(m.buckets[p]?hmH(m.buckets[p]):'<span class="muted">—</span>')+'</td>').join('')+'<td><b>'+(m.rate?money(m.pay):'<span class="muted">нет ставки</span>')+'</b></td></tr>';
+  });
+  h+='</tbody>'+(rows.length>1?'<tfoot><tr><td>Итого</td><td>'+hmH(tot.H)+'</td>'+pcts.map(p=>'<td>'+(tot.b[p]?hmH(tot.b[p]):'—')+'</td>').join('')+'<td>'+money(tot.pay)+'</td></tr></tfoot>':'')+'</table></div></section>';
+  return h;
+}
+function adminWorkerDetail(wid){
+  const w=S.workers[wid],m=calcMonth(wid,S.month);
+  let h='<div class="row"><button class="btn sm" data-act="repBack">← Все работники</button></div>'+monthNav();
+  h+='<section class="card"><div class="row between"><div><h2>'+esc(w.name)+rolePill(w)+'</h2><p class="muted small">'+esc(companyName(w.companyId))+' · ID '+esc(w.code)+' · '+(w.rate?esc(w.rate)+' ₪/час':'ставка не указана')+'</p></div><button class="btn sm primary" data-act="shiftAdd" data-arg="'+wid+'">Добавить смену</button></div>'+
+  '<div class="row">'+(canEditPerson(w)?'<button class="btn sm" data-act="workerForm" data-arg="'+wid+'">Данные и пароль</button>':'')+'<button class="btn sm ghost" data-act="actAs" data-arg="'+wid+'">Открыть как работник</button>'+
+  (adm().owner&&rightsOf(w)?'<button class="btn sm ghost" data-act="actAsAdmin" data-arg="'+wid+'">Открыть как '+(roleOf(w)==='super'?'главный админ':'старший')+'</button>':'')+'</div>'+
+  '<div class="tiles"><div class="tile"><span>Часы</span><b>'+hmH(m.totalH)+'</b></div><div class="tile"><span>Сверхурочно</span><b>'+hmH(m.otH)+'</b></div><div class="tile"><span>Сумма</span><b>'+(m.rate?money(m.pay):'—')+'</b></div></div>'+
+  (Object.keys(m.buckets).length?'<div class="row">'+bucketPills(m.buckets)+'</div>':'')+'</section>';
+  h+='<section class="card"><h2>Смены</h2>';
+  if(!m.days.length)h+='<p class="empty">В этом месяце смен нет.</p>';
+  m.days.forEach(d=>{
+    h+='<div class="day"><div class="row between"><h3>'+fmtDay(d.key)+(d.dayRate>100?' <span class="pill warn">'+d.dayRate+'%</span>':'')+'</h3><span class="tnum"><b>'+hmH(d.H)+'</b>'+(m.rate?' · '+money(d.pay):'')+'</span></div>';
+    d.shifts.forEach(s=>{h+='<div class="shift"><span class="t">'+clock(s.start)+' – '+(s.end?clock(s.end):'идёт')+(s.end?' <span class="muted">('+hm(s.end-s.start)+')</span>':'')+(s.editedAt?' <span class="pill grey">исправлено</span>':'')+'</span><button class="btn sm" data-act="shiftEdit" data-arg="'+s.id+'">Изменить</button></div>';});
+    h+='</div>';
+  });
+  return h+'</section>';
+}
+
+function adminRequests(){
+  const all=Object.entries(S.requests).filter(([,r])=>wScope(r.workerId)).sort((a,b)=>b[1].createdAt-a[1].createdAt);
+  const pend=all.filter(([,r])=>r.status==='pending'),done=all.filter(([,r])=>r.status!=='pending').slice(0,20);
+  const item=([id,r],act)=>{const w=S.workers[r.workerId]||{};const old=r.shiftId&&S.shifts[r.shiftId];
+    return '<div class="list-item" style="align-items:flex-start"><div class="grow"><div><b>'+esc(w.name||'?')+'</b> <span class="muted small">'+esc(w.code||'')+' · '+esc(companyName(w.companyId))+'</span></div>'+
+    '<div class="small">'+(r.type==='add'?'Просит добавить смену':'Просит исправить смену')+'</div>'+
+    (r.type==='edit'&&r.oldStart?'<div class="small muted tnum">Было: '+fmtDT(r.oldStart)+' – '+(r.oldEnd?clock(r.oldEnd):'…')+'</div>':'')+
+    '<div class="small tnum"><b>Стало: '+fmtDT(r.start)+' – '+clock(r.end)+'</b> ('+hm(r.end-r.start)+')</div>'+
+    (r.comment?'<div class="small">«'+esc(r.comment)+'»</div>':'')+
+    (act?'<div class="row" style="margin-top:6px"><button class="btn sm primary" data-act="approve" data-arg="'+id+'">Одобрить</button><button class="btn sm danger" data-act="reject" data-arg="'+id+'">Отклонить</button></div>':'')+
+    '</div>'+(act?'':statusPill(r.status))+'</div>';};
+  let h='<section class="card"><h2>Ждут решения</h2>'+(pend.length?pend.map(x=>item(x,true)).join(''):'<p class="empty">Новых запросов нет.</p>')+'</section>';
+  if(done.length)h+='<section class="card"><h2>История</h2>'+done.map(x=>item(x,false)).join('')+'</section>';
+  return h;
+}
+
+function adminWorkers(){
+  let h='<div class="row between"><p class="muted small">Работники регистрируются сами или вы добавляете их здесь.</p><button class="btn primary" data-act="workerForm">+ Работник</button></div>';
+  const a=adm();const regs=pendingRegs().sort((x,y)=>String(x[1].code).localeCompare(String(y[1].code)));
+  if(regs.length){
+    h+='<section class="card" style="border-color:var(--warn)"><div class="row between"><h2>Новые регистрации</h2><span class="pill warn">'+regs.length+'</span></div>'+
+    regs.map(([id,w])=>'<div class="list-item"><div class="grow"><div><b class="tnum">'+esc(w.code)+'</b> · '+esc(w.name)+'</div><div class="muted small">'+esc(companyName(w.companyId))+(w.phone?' · '+esc(w.phone):'')+(w.email?' · '+esc(w.email):'')+'</div></div>'+
+    '<button class="btn sm primary" data-act="regAccept" data-arg="'+id+'">Принять</button><button class="btn sm danger" data-act="regReject" data-arg="'+id+'">Отклонить</button></div>').join('')+'</section>';
+  }
+  const groups=scopedCompanies().map(([cid,c])=>[cid,c.name]);
+  const orphans=a.all?sortedWorkers().filter(([,w])=>!isPendingReg(w)&&!S.companies[w.companyId]):[];
+  groups.forEach(([cid,name])=>{
+    const ws=sortedWorkers().filter(([,w])=>w.companyId===cid&&!isPendingReg(w));
+    h+='<section class="card"><div class="row between"><h2>'+esc(name)+'</h2><span class="pill grey">'+ws.length+'</span></div>'+(ws.length?ws.map(workerRow).join(''):'<p class="empty">Пока нет работников</p>')+'</section>';
+  });
+  if(orphans.length)h+='<section class="card"><h2>Без компании</h2>'+orphans.map(workerRow).join('')+'</section>';
+  if(!groups.length&&!orphans.length)h+='<p class="empty">Сначала добавьте компанию.</p>';
+  return h;
+}
+function workerRow([id,w]){
+  return '<div class="list-item"><div class="grow"><div><b class="tnum">'+esc(w.code)+'</b> · '+esc(w.name)+rolePill(w)+(w.active===false?' <span class="pill stop">не работает</span>':'')+'</div><div class="muted small tnum">'+[w.phone,w.email,w.rate?w.rate+' ₪/час':'без ставки'].filter(Boolean).map(esc).join(' · ')+'</div></div>'+
+  '<button class="btn sm primary" data-act="openTable" data-arg="'+id+'">Табель</button>'+(canEditPerson(w)?'<button class="btn sm" data-act="workerForm" data-arg="'+id+'">Изменить</button>':'')+'</div>';
+}
+function canEditPerson(w){const a=adm();return !!a&&(a.roles||(roleOf(w)==='worker'&&inScope(w.companyId)));}
+
+function adminCompanies(){
+  const a=adm();
+  let h='<div class="row between"><p class="muted small">У каждой компании свои правила переработок и доплат по дням.</p>'+(a.all?'<button class="btn primary" data-act="companyForm">+ Компания</button>':'')+'</div>';
+  const cs=scopedCompanies();
+  if(!cs.length)h+='<p class="empty">Компаний пока нет.</p>';
+  cs.forEach(([id,c])=>{const r=rulesOf(c);const n=Object.values(S.workers).filter(w=>w.companyId===id).length;
+    const special=r.day.map((p,i)=>p!==100?WD[i]+' '+p+'%':null).filter(Boolean).join(', ');
+    const mg=managersOf(id).map(w=>esc(w.name)).join(', ');
+    h+='<section class="card"><div class="row between"><h2>'+esc(c.name)+'</h2>'+(a.all?'<button class="btn sm" data-act="companyForm" data-arg="'+id+'">Изменить</button>':'')+'</div>'+
+    '<p class="small"><b>Старшие:</b> '+(mg||'<span class="muted">не назначены</span>')+'</p>'+
+    '<p class="small">Норма '+r.norm+' ч в день, дальше '+r.ot1Hours+' ч по '+r.ot1+'%, потом '+r.ot2+'%.</p>'+
+    '<p class="small">'+(special?'Доплата по дням: '+special+'.':'Все дни по 100%.')+(r.breakMin?' Перерыв '+r.breakMin+' мин вычитается из смен длиннее 6 ч.':'')+'</p>'+
+    '<p class="muted small">'+n+' '+plural(n,'работник','работника','работников')+'</p></section>';
+  });
+  return h;
+}
+
+/* ---------- modals ---------- */
+function openModal(html){$modal.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';$modal.hidden=false;const f=$modal.querySelector('input,select,textarea');if(f&&window.innerWidth>600)f.focus();}
+function closeModal(){$modal.hidden=true;$modal.innerHTML='';}
+const fld=(id,label,input)=>'<div class="field"><label for="'+id+'">'+label+'</label>'+input+'</div>';
+
+function companyModal(id){
+  const c=id?S.companies[id]:{name:''};const r=rulesOf(c);
+  openModal('<form data-form="company" data-id="'+(id||'')+'" style="display:flex;flex-direction:column;gap:12px"><h2>'+(id?'Компания':'Новая компания')+'</h2>'+
+  fld('cname','Название','<input id="cname" name="name" required value="'+esc(c.name)+'">')+
+  '<div class="grid2">'+fld('cnorm','Обычных часов в день','<input id="cnorm" name="norm" type="number" step="0.1" min="0" value="'+r.norm+'">')+fld('cbreak','Перерыв, мин (из смен > 6 ч)','<input id="cbreak" name="breakMin" type="number" min="0" value="'+r.breakMin+'">')+'</div>'+
+  '<div class="grid2">'+fld('cot1h','Первые часы переработки','<input id="cot1h" name="ot1Hours" type="number" step="0.5" min="0" value="'+r.ot1Hours+'">')+fld('cot1','…оплата, %','<input id="cot1" name="ot1" type="number" min="100" value="'+r.ot1+'">')+'</div>'+
+  fld('cot2','Дальше переработка, %','<input id="cot2" name="ot2" type="number" min="100" value="'+r.ot2+'">')+
+  '<div class="field"><label>Оплата по дням недели, %</label><div class="grid7">'+WD.map((d,i)=>'<div class="field" style="gap:2px"><label for="cd'+i+'" style="text-align:center">'+d+'</label><input id="cd'+i+'" name="d'+i+'" type="number" min="0" value="'+r.day[i]+'"></div>').join('')+'</div>'+
+  '<p class="muted small">Если день и переработка дают разный процент, берётся больший.</p></div>'+
+  '<div class="row"><button class="btn primary" type="submit">Сохранить</button><button class="btn" type="button" data-act="closeModal">Отмена</button>'+
+  (id?'<div class="sp" style="flex:1"></div><button class="btn danger" type="button" data-act="companyDelete" data-arg="'+id+'">Удалить</button>':'')+'</div></form>');
+}
+function workerModal(id){
+  const w=id?S.workers[id]:{code:'',name:'',phone:'',email:'',companyId:(S.repCompany!=='all'&&S.repCompany)||(scopedCompanies()[0]||[])[0]||'',rate:'',active:true};
+  if(!scopedCompanies().length){toast('Сначала добавьте компанию');return;}
+  const a=adm();const role=roleOf(w);const man=Array.isArray(w.manages)?w.manages:[];
+  const canReset=id&&w.authEmail&&!isPhoneEmail(w.authEmail);
+  const roleBlock=!a.roles||id===S.uid?'':'<fieldset style="border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;margin:0"><legend style="font-weight:600;padding:0 4px">Права</legend>'+
+    [['worker','Работник','отмечает своё время'],['manager','Старший','управляет выбранными компаниями'],['super','Главный админ','видит всё, как вы']].map(([v,l,d])=>'<label class="row" style="color:var(--ink);font-size:15px;gap:8px"><input type="radio" name="role" value="'+v+'" style="width:auto"'+(role===v?' checked':'')+' data-rolepick> <b>'+l+'</b> <span class="muted small">'+d+'</span></label>').join('')+
+    '<div id="manBox" class="field"'+(role==='manager'?'':' hidden')+'><label>Компании старшего</label>'+sortedCompanies().map(([cid,c])=>'<label class="row" style="color:var(--ink);font-size:15px;gap:8px"><input type="checkbox" name="manages" value="'+cid+'" style="width:auto"'+(man.includes(cid)?' checked':'')+'> '+esc(c.name)+'</label>').join('')+'</div></fieldset>';
+  openModal('<form data-form="worker" data-id="'+(id||'')+'" style="display:flex;flex-direction:column;gap:12px"><h2>'+(id?'Работник':'Новый работник')+(id?' <span class="muted tnum" style="font-weight:400">ID '+esc(w.code)+'</span>':'')+'</h2>'+
+  fld('wname','Имя и фамилия','<input id="wname" name="name" required value="'+esc(w.name)+'">')+
+  '<div class="grid2">'+fld('wphone','Телефон','<input id="wphone" name="phone" type="tel" value="'+esc(w.phone)+'">')+fld('wemail','Email','<input id="wemail" name="email" type="email" autocapitalize="off" value="'+esc(w.email||'')+'"'+(id?' readonly':'')+'>')+'</div>'+
+  (id?'':fld('wpin','Пароль для входа (минимум 6 символов)','<input id="wpin" name="pass" type="text" autocomplete="off" minlength="6" required>')+'<p class="muted small">ID присвоится автоматически. Сообщите работнику ID и пароль.</p>')+
+  (id?(canReset?'<div class="row"><button class="btn sm" type="button" data-act="sendReset" data-arg="'+id+'">Отправить письмо для смены пароля</button></div>':'<p class="muted small">Работник входит по телефону. Если он забудет пароль, восстановить его можно только через email, поэтому лучше попросить его указать email.</p>'):'')+
+  '<div class="grid2">'+fld('wcomp','Компания','<select id="wcomp" name="companyId">'+scopedCompanies().map(([cid,c])=>'<option value="'+cid+'"'+(cid===w.companyId?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select>')+
+  fld('wrate','Ставка, ₪ в час','<input id="wrate" name="rate" type="number" step="0.01" min="0" value="'+esc(w.rate)+'">')+'</div>'+
+  roleBlock+'<label class="row" style="color:var(--ink);font-size:15px"><input type="checkbox" name="active" style="width:auto"'+(w.active!==false||isPendingReg(w)?' checked':'')+'> Работает сейчас'+(isPendingReg(w)?' (регистрация будет принята)':'')+'</label>'+
+  '<p class="err" id="werr"></p><div class="row"><button class="btn primary" type="submit">Сохранить</button><button class="btn" type="button" data-act="closeModal">Отмена</button></div></form>');
+}
+function regModal(){
+  const cs=sortedCompanies();
+  if(!cs.length){toast('Регистрация пока закрыта: администратор ещё не добавил компании');return;}
+  openModal('<form data-form="register" style="display:flex;flex-direction:column;gap:12px"><h2>Регистрация</h2>'+
+  fld('gname','Имя и фамилия','<input id="gname" name="name" required autocomplete="name">')+
+  fld('gcomp','Компания','<select id="gcomp" name="companyId">'+cs.map(([cid,c])=>'<option value="'+cid+'">'+esc(c.name)+'</option>').join('')+'</select>')+
+  fld('gphone','Телефон','<input id="gphone" name="phone" type="tel" autocomplete="tel">')+
+  fld('gemail','Email','<input id="gemail" name="email" type="email" autocapitalize="off" autocomplete="email">')+
+  '<p class="muted small">Нужен телефон или email. Лучше указать email: по нему можно восстановить пароль.</p>'+
+  '<div class="grid2">'+fld('gpass','Пароль (от 6 символов)','<input id="gpass" name="pass" type="password" required minlength="6" autocomplete="new-password">')+fld('gpass2','Ещё раз','<input id="gpass2" name="pass2" type="password" required minlength="6" autocomplete="new-password">')+'</div>'+
+  '<p class="err" id="gerr"></p><div class="row"><button class="btn primary" type="submit">Отправить</button><button class="btn" type="button" data-act="closeModal">Отмена</button></div></form>');
+}
+function shiftModal(sid,wid){
+  const s=sid?S.shifts[sid]:null;wid=s?s.workerId:wid;const w=S.workers[wid]||{};
+  const now=Date.now();const st=s?s.start:new Date(new Date().setHours(8,0,0,0)).getTime();const en=s?s.end:new Date(new Date().setHours(17,0,0,0)).getTime();
+  openModal('<form data-form="shift" data-id="'+(sid||'')+'" data-worker="'+wid+'" style="display:flex;flex-direction:column;gap:12px"><h2>'+(sid?'Изменить смену':'Добавить смену')+'</h2><p class="muted">'+esc(w.name)+' · '+esc(w.code)+'</p>'+
+  fld('sstart','Начало','<input id="sstart" name="start" type="datetime-local" required value="'+toInput(st)+'">')+
+  fld('send','Конец (пусто — смена ещё идёт)','<input id="send" name="end" type="datetime-local" value="'+(en?toInput(en):'')+'">')+
+  '<p class="err" id="serr"></p><div class="row"><button class="btn primary" type="submit">Сохранить</button><button class="btn" type="button" data-act="closeModal">Отмена</button>'+
+  (sid?'<div style="flex:1"></div><button class="btn danger" type="button" data-act="shiftDelete" data-arg="'+sid+'">Удалить</button>':'')+'</div></form>');
+}
+function requestModal(sid){
+  const s=sid?S.shifts[sid]:null;
+  const st=s?s.start:new Date(new Date().setHours(8,0,0,0)).getTime();const en=s&&s.end?s.end:new Date(new Date().setHours(17,0,0,0)).getTime();
+  openModal('<form data-form="request" data-id="'+(sid||'')+'" style="display:flex;flex-direction:column;gap:12px"><h2>'+(sid?'Исправить время':'Добавить смену')+'</h2>'+
+  '<p class="muted">Запрос уйдёт администратору. Время изменится после одобрения.</p>'+
+  fld('rstart','Начало','<input id="rstart" name="start" type="datetime-local" required value="'+toInput(st)+'">')+
+  fld('rend','Конец','<input id="rend" name="end" type="datetime-local" required value="'+toInput(en)+'">')+
+  fld('rcom','Комментарий','<textarea id="rcom" name="comment" rows="2" placeholder="Например: забыл нажать «Закончить»"></textarea>')+
+  '<p class="err" id="rerr"></p><div class="row"><button class="btn primary" type="submit">Отправить</button><button class="btn" type="button" data-act="closeModal">Отмена</button></div></form>');
+}
+function confirmModal(text,okLabel,fn){
+  openModal('<h2>'+esc(text)+'</h2><div class="row"><button class="btn stop" data-act="confirmOk">'+esc(okLabel)+'</button><button class="btn" data-act="closeModal">Отмена</button></div>');
+  pendingConfirm=fn;
+}
+let pendingConfirm=null;
+function checkTimes(a,b){if(!isFinite(a))return 'Укажите начало';if(!isFinite(b))return 'Укажите конец';if(b<=a)return 'Конец должен быть позже начала';if(b-a>24*3600000)return 'Смена длиннее 24 часов, проверьте даты';return '';}
+
+/* ---------- export ---------- */
+function buildCsv(){
+  const rows=reportRows();
+  const pcts=[...new Set(rows.flatMap(r=>Object.keys(r.m.buckets).map(Number)).concat([100]))].sort((a,b)=>a-b);
+  const q=v=>{const s=String(v==null?'':v);return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
+  const dec=h=>(Math.round(h*100)/100).toFixed(2);
+  const out=[];
+  out.push(['Отчёт',monthLabel(S.month),S.repCompany==='all'?'Все компании':companyName(S.repCompany)]);
+  out.push([]);
+  out.push(['ID','Имя','Компания','Ставка ₪/ч','Часы всего'].concat(pcts.map(p=>'Часы '+p+'%')).concat(['Сверхурочно','Сумма ₪']));
+  rows.forEach(({w,m})=>out.push([w.code,w.name,companyName(w.companyId),w.rate||'',dec(m.totalH)].concat(pcts.map(p=>dec(m.buckets[p]||0))).concat([dec(m.otH),Math.round(m.pay)])));
+  out.push([]);
+  out.push(['Смены по дням']);
+  out.push(['ID','Имя','Дата','День','Начало','Конец','Часы','Сумма ₪']);
+  rows.forEach(({w,m})=>m.days.slice().reverse().forEach(d=>d.shifts.forEach((s,i)=>out.push([w.code,w.name,d.key,WD[new Date(s.start).getDay()],clock(s.start),s.end?clock(s.end):'идёт',i===0?dec(d.H):'',i===0?Math.round(d.pay):'']))));
+  return '﻿'+out.map(r=>r.map(q).join(',')).join('\r\n');
+}
+async function doExport(){
+  const csv=buildCsv();const name='tabel-'+S.month+(S.repCompany!=='all'?'-'+companyName(S.repCompany).replace(/[^\wа-яА-ЯёЁ-]+/g,'_'):'')+'.csv';
+  try{const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);return;}catch(e){}
+  openModal('<h2>Данные для Excel</h2><p class="muted small">Скопируйте и вставьте в Excel или Google Таблицы.</p><textarea id="csvbox" rows="10" readonly>'+esc(csv.replace('﻿','').replace(/,/g,'\t'))+'</textarea><div class="row"><button class="btn primary" data-act="copyCsv">Копировать</button><button class="btn" data-act="closeModal">Закрыть</button></div>');
+}
+
+/* ---------- actions ---------- */
+const ACT={
+  goAdmin(){S.view='admin';S.tab='now';S.repWorker=null;S.month=monthKey(new Date());syncSubs();render();window.scrollTo(0,0);},
+  backAdmin(){S.view='admin';S.asAdminPreview=false;S.me=S.uid;S.repCompany='all';syncSubs();render();},
+  logout(){S.asAdminPreview=false;S.login={id:'',pin:''};B.signOut();},
+  forgot(){forgotModal();},
+  sendReset(id){const w=S.workers[id];if(!w||!w.authEmail)return;safe(()=>B.reset(w.authEmail),'Письмо отправлено на '+w.authEmail);},
+  tab(a){S.tab=a;S.repWorker=null;render();window.scrollTo(0,0);},
+  month(a){S.month=shiftMonth(S.month,Number(a));syncSubs();render();},
+  clockIn(){const w=S.workers[S.me];if(openShiftOf(S.me))return;const now=Date.now();safe(()=>put('shifts',newId('shifts'),{workerId:S.me,companyId:w.companyId,start:now,end:null,month:monthKey(new Date(now)),createdAt:now}),'Смена началась');},
+  clockOut(id){const s=S.shifts[id];if(!s)return;const now=Date.now();
+    if(now-s.start<60000){confirmModal('Смена длилась меньше минуты. Закончить?','Закончить',()=>safe(()=>patch('shifts',id,{end:Date.now()}),'Смена закончена'));return;}
+    safe(()=>patch('shifts',id,{end:now}),'Смена закончена: '+hm(now-s.start));},
+  adminClose(id){const s=S.shifts[id];const w=S.workers[s.workerId]||{};confirmModal('Закрыть смену '+(w.name||'')+' текущим временем?','Закрыть',()=>safe(()=>patch('shifts',id,{end:Date.now(),editedAt:Date.now()}),'Смена закрыта'));},
+  reqEdit(id){requestModal(id);},
+  reqAdd(){requestModal(null);},
+  approve(id){const r=S.requests[id];if(!r)return;safe(async()=>{
+      if(r.type==='edit'&&r.shiftId&&S.shifts[r.shiftId])await patch('shifts',r.shiftId,{start:r.start,end:r.end,month:monthKey(new Date(r.start)),editedAt:Date.now()});
+      else await put('shifts',newId('shifts'),{workerId:r.workerId,companyId:r.companyId||(S.workers[r.workerId]||{}).companyId||'',start:r.start,end:r.end,month:monthKey(new Date(r.start)),createdAt:Date.now(),editedAt:Date.now()});
+      await patch('requests',id,{status:'approved',decidedAt:Date.now()});},'Одобрено, время обновлено');},
+  reject(id){safe(()=>patch('requests',id,{status:'rejected',decidedAt:Date.now()}),'Запрос отклонён');},
+  repWorker(id){S.repWorker=id;render();window.scrollTo(0,0);},
+  repBack(){S.repWorker=null;render();},
+  shiftAdd(wid){shiftModal(null,wid);},
+  shiftEdit(id){shiftModal(id);},
+  shiftDelete(id){confirmModal('Удалить эту смену?','Удалить',()=>safe(()=>remove('shifts',id),'Смена удалена'));},
+  workerForm(id){workerModal(id||null);},
+  companyForm(id){companyModal(id||null);},
+  companyDelete(id){const n=Object.values(S.workers).filter(w=>w.companyId===id).length;
+    if(n){toast('Сначала переведите или удалите работников этой компании ('+n+')');return;}
+    confirmModal('Удалить компанию «'+companyName(id)+'»?','Удалить',()=>safe(()=>remove('companies',id),'Компания удалена'));},
+  regForm(){regModal();},
+  actAsAdmin(id){S.me=id;S.asAdminPreview=true;S.view='admin';S.tab='now';S.repWorker=null;S.repCompany='all';render();window.scrollTo(0,0);},
+  myTable(){S.view='worker';S.me=S.uid;S.month=monthKey(new Date());syncSubs();render();window.scrollTo(0,0);},
+  regAccept(id){workerModal(id);},
+  regReject(id){const w=S.workers[id]||{};confirmModal('Отклонить регистрацию '+(w.name||'')+'?','Отклонить',()=>safe(()=>patch('workers',id,{status:'rejected',active:false}),'Регистрация отклонена'));},
+  openTable(id){S.tab='report';S.repWorker=id;render();window.scrollTo(0,0);},
+  actAs(id){S.me=id;S.asAdminPreview=true;S.view='worker';S.month=monthKey(new Date());render();window.scrollTo(0,0);},
+  export(){doExport();},
+  copyCsv(){const t=document.getElementById('csvbox');if(!t)return;navigator.clipboard.writeText(t.value).then(()=>toast('Скопировано'),()=>{t.focus();t.select();toast('Выделено, скопируйте вручную');});},
+  closeModal(){closeModal();},
+  confirmOk(){const f=pendingConfirm;pendingConfirm=null;closeModal();if(f)f();}
+};
+const CHANGE={repCompany(v){S.repCompany=v;render();}};
+const FORM={
+  async login(){
+    const id=S.login.id.trim(),pin=S.login.pin;
+    if(!id||!pin){S.loginErr='Введите логин и пароль';render();return;}
+    let email=null;
+    S.busy=true;S.loginErr='';render();
+    try{
+      if(id.includes('@'))email=normEmail(id);
+      else{const key=loginKey(id);const d=key?await B.get('logins',key):null;if(d)email=d.email;}
+      if(!email){S.loginErr='Такой ID или телефон не найден';return;}
+      await B.signIn(email,pin);
+      S.login={id:'',pin:''};
+    }catch(e){
+      const c=String(e&&e.code||'');
+      S.loginErr=c.includes('too-many')?'Слишком много попыток. Подождите пару минут.':c.includes('network')?'Нет связи с сервером':'Неверный логин или пароль';
+    }finally{S.busy=false;render();}
+  },
+  company(fd,f){
+    const id=f.dataset.id||newId('companies');const num=k=>Number(fd.get(k));
+    const rules={norm:num('norm'),ot1Hours:num('ot1Hours'),ot1:num('ot1'),ot2:num('ot2'),breakMin:num('breakMin')||0,day:[0,1,2,3,4,5,6].map(i=>num('d'+i)||100)};
+    const data=Object.assign({},f.dataset.id?S.companies[id]:{createdAt:Date.now()},{name:String(fd.get('name')).trim(),rules});
+    closeModal();safe(()=>put('companies',id,data),'Сохранено');
+  },
+  async worker(fd,f){
+    const err=t=>{document.getElementById('werr').textContent=t;};
+    const id=f.dataset.id||null;
+    const phone=String(fd.get('phone')||'').trim(),email=normEmail(fd.get('email'));
+    if(phone&&digits(phone).length<7)return err('Проверьте номер телефона');
+    if(phone&&findDup('phone',phone,id))return err('Этот телефон уже есть у другого работника');
+    const a=adm();
+    const base=Object.assign({},id?S.workers[id]:{createdAt:Date.now(),role:'worker',manages:[]});
+    const data=Object.assign(base,{name:String(fd.get('name')).trim(),phone,companyId:fd.get('companyId'),rate:Number(fd.get('rate'))||0,active:fd.get('active')==='on',status:'active'});
+    if(a.roles&&fd.get('role')){
+      const role=String(fd.get('role'));const manages=fd.getAll('manages').map(String);
+      if(role==='manager'&&!manages.length)return err('Отметьте компании, которыми управляет старший');
+      data.role=role;data.manages=role==='manager'?manages:[];
+    }
+    const btn=f.querySelector('button[type=submit]');btn.disabled=true;
+    try{
+      if(!id){
+        const pass=String(fd.get('pass')||'');
+        if(pass.length<6)throw {msg:'Пароль: минимум 6 символов'};
+        if(!phone&&!email)throw {msg:'Укажите телефон или email'};
+        if(phone){const ex=await B.get('logins','p_'+normPhone(phone));if(ex)throw {msg:'Этот телефон уже зарегистрирован'};}
+        const authEmail=email||phoneEmail(phone);
+        let nid;
+        try{nid=await B.createOther(authEmail,pass);}catch(e){throw {msg:String(e.code||'').includes('email-already')?'Этот email уже зарегистрирован':'Не удалось создать вход: '+(e.code||e.message)};}
+        data.code=await B.nextCode();data.email=email;data.authEmail=authEmail;
+        await put('workers',nid,data);
+        await B.put('logins','c_'+data.code,{email:authEmail,uid:nid});
+        if(phone)await B.put('logins','p_'+normPhone(phone),{email:authEmail,uid:nid});
+        closeModal();
+        openModal('<h2>Работник добавлен</h2><p>ID для входа: <b class="tnum" style="font-size:22px">'+esc(data.code)+'</b></p><p class="muted">Сообщите ему ID (или телефон/email) и пароль.</p><button class="btn primary" data-act="closeModal">Понятно</button>');
+      }else{
+        const old=S.workers[id]||{};
+        await put('workers',id,data);
+        if(normPhone(old.phone)!==normPhone(phone)){
+          if(old.phone)await B.remove('logins','p_'+normPhone(old.phone)).catch(()=>{});
+          if(phone)await B.put('logins','p_'+normPhone(phone),{email:data.authEmail||old.authEmail,uid:id});
+        }
+        closeModal();toast('Сохранено');
+      }
+    }catch(e){btn.disabled=false;err(e&&e.msg?e.msg:errText(e));}
+  },
+  async register(fd){
+    const err=t=>{const el=document.getElementById('gerr');if(el)el.textContent=t;};
+    const name=String(fd.get('name')||'').trim(),phone=String(fd.get('phone')||'').trim(),email=normEmail(fd.get('email'));
+    const pass=String(fd.get('pass')||''),pass2=String(fd.get('pass2')||'');
+    if(!name)return err('Укажите имя');
+    if(!phone&&!email)return err('Укажите телефон или email');
+    if(phone&&digits(phone).length<7)return err('Проверьте номер телефона');
+    if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return err('Проверьте email');
+    if(pass.length<6)return err('Пароль: минимум 6 символов');
+    if(pass!==pass2)return err('Пароли не совпадают');
+    try{if(phone&&await B.get('logins','p_'+normPhone(phone)))return err('Такой телефон уже зарегистрирован. Попробуйте войти.');}catch(e){return err('Нет связи с сервером');}
+    S.pendingProfile={name,phone,email,companyId:fd.get('companyId')};
+    try{await B.signUp(email||phoneEmail(phone),pass);closeModal();}
+    catch(e){S.pendingProfile=null;const c=String(e&&e.code||'');err(c.includes('email-already')?'Такой '+(email?'email':'телефон')+' уже зарегистрирован. Попробуйте войти.':c.includes('weak')?'Слишком простой пароль':'Не получилось: '+(c||'ошибка'));}
+  },
+  async profile(fd){
+    const err=t=>{document.getElementById('perr').textContent=t;};
+    const name=String(fd.get('name')||'').trim(),phone=String(fd.get('phone')||'').trim();
+    if(!name)return err('Укажите имя');
+    if(phone&&digits(phone).length<7)return err('Проверьте номер телефона');
+    const ok=await createProfile({name,phone,email:isPhoneEmail(S.email)?'':S.email,companyId:fd.get('companyId')});
+    if(!ok)err('Не получилось сохранить, попробуйте ещё раз');
+  },
+  shift(fd,f){
+    const a=fromInput(fd.get('start')),bRaw=fd.get('end'),b=bRaw?fromInput(bRaw):null;
+    const e=b===null?(isFinite(a)?'':'Укажите начало'):checkTimes(a,b);if(e){document.getElementById('serr').textContent=e;return;}
+    const sid=f.dataset.id,wid=f.dataset.worker;closeModal();
+    if(sid)safe(()=>patch('shifts',sid,{start:a,end:b,month:monthKey(new Date(a)),editedAt:Date.now()}),'Смена изменена');
+    else safe(()=>put('shifts',newId('shifts'),{workerId:wid,companyId:(S.workers[wid]||{}).companyId||'',start:a,end:b,month:monthKey(new Date(a)),createdAt:Date.now(),editedAt:Date.now()}),'Смена добавлена');
+  },
+  request(fd,f){
+    const a=fromInput(fd.get('start')),b=fromInput(fd.get('end'));const e=checkTimes(a,b);if(e){document.getElementById('rerr').textContent=e;return;}
+    const sid=f.dataset.id||null;const s=sid?S.shifts[sid]:null;const w=S.workers[S.me]||{};
+    const data={workerId:S.me,companyId:w.companyId||'',type:sid?'edit':'add',shiftId:sid,start:a,end:b,comment:String(fd.get('comment')||'').trim().slice(0,300),status:'pending',createdAt:Date.now()};
+    if(s){data.oldStart=s.start;data.oldEnd=s.end||null;}
+    closeModal();safe(()=>put('requests',newId('requests'),data),'Запрос отправлен старшему');
+  }
+};
+
+document.addEventListener('click',e=>{
+  if(e.target===$modal){closeModal();return;}
+  const el=e.target.closest('[data-act]');if(!el)return;
+  const fn=ACT[el.dataset.act];if(fn){e.preventDefault();fn(el.dataset.arg);}
+});
+document.addEventListener('submit',e=>{const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const fn=FORM[f.dataset.form];if(fn)fn(new FormData(f),f);});
+document.addEventListener('input',e=>{const b=e.target.dataset&&e.target.dataset.bind;if(b){S.login[b]=e.target.value;if(S.loginErr){S.loginErr='';}}});
+document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.rolepick!==undefined){const b=document.getElementById('manBox');if(b)b.hidden=e.target.value!=='manager';}const c=e.target.dataset&&e.target.dataset.change;if(c&&CHANGE[c])CHANGE[c](e.target.value);});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$modal.hidden)closeModal();});
+
+/* ---------- render ---------- */
+function render(){
+  const ae=document.activeElement;const fid=ae&&ae.id&&$app.contains(ae)?ae.id:null;let sel=null;try{sel=fid?ae.selectionStart:null;}catch(e){}
+  $top.innerHTML=topBar();
+  let h='';
+  if(S.error)h+='<div class="banner">'+linkify(S.error)+'</div>';
+  if(!S.ready||(S.uid&&(!S.profileLoaded||S.creating))){h+='<p class="muted">Загрузка…</p>'+(S.slow?'<div class="banner">Данные пока не загрузились. Проверьте интернет.</div>':'');}
+  else if(!S.uid){S.view='start';h+=startView();}
+  else if(!S.workers[S.uid]&&!isOwnerEmail()){h+=profileFormView();}
+  else if(S.workers[S.uid]&&!isOwnerEmail()&&(S.workers[S.uid].status!=='active'||S.workers[S.uid].active===false)){h+=statusView();}
+  else{
+    if(S.view==='admin'&&adm())h+=adminView();
+    else if(S.me&&S.workers[S.me]){S.view='worker';h+=workerView();}
+    else if(adm()){S.view='admin';h+=adminView();}
+    else h+='<p class="muted">Загрузка…</p>';
+  }
+  $app.innerHTML=h;
+  if(fid){const n=document.getElementById(fid);if(n){n.focus();try{if(sel!=null)n.setSelectionRange(sel,sel);}catch(e){}}}
+}
+function linkify(t){return esc(t).replace(/https:\/\/[^\s<]+/g,u=>'<a href="'+u+'" target="_blank" rel="noopener">ссылка</a>');}
+function forgotModal(){
+  openModal('<form data-form="forgot" style="display:flex;flex-direction:column;gap:12px"><h2>Восстановить пароль</h2><p class="muted">Пришлём письмо со ссылкой для нового пароля. Работает, если при регистрации был указан email.</p>'+
+  fld('femail','Email','<input id="femail" name="email" type="email" autocapitalize="off" required value="'+esc(S.login.id.includes('@')?S.login.id:'')+'">')+
+  '<p class="muted small">Регистрировались только по телефону? Обратитесь к старшему своей компании.</p>'+
+  '<div class="row"><button class="btn primary" type="submit">Отправить</button><button class="btn" type="button" data-act="closeModal">Отмена</button></div></form>');
+}
+FORM.forgot=async function(fd){const e=normEmail(fd.get('email'));closeModal();try{await B.reset(e);}catch(x){}toast('Если такой email есть, письмо уже отправлено');};
+setInterval(()=>{document.querySelectorAll('[data-since]').forEach(el=>{el.textContent=hm(Date.now()-Number(el.dataset.since));});},15000);
+
+/* ---------- backends ---------- */
+function makeFirebase(M){
+  const A=M.auth,F=M.fs;
+  const app=M.app.initializeApp(FIREBASE_CONFIG);const auth=A.getAuth(app);const fdb=F.getFirestore(app);
+  let sec=null;
+  return {
+    demo:false,
+    onAuth(cb){A.onAuthStateChanged(auth,u=>cb(u?{uid:u.uid,email:normEmail(u.email)}:null));},
+    signIn:(e,p)=>A.signInWithEmailAndPassword(auth,e,p),
+    async signUp(e,p){const c=await A.createUserWithEmailAndPassword(auth,e,p);return c.user.uid;},
+    signOut:()=>A.signOut(auth),
+    async createOther(e,p){if(!sec)sec=A.getAuth(M.app.initializeApp(FIREBASE_CONFIG,'secondary'));const c=await A.createUserWithEmailAndPassword(sec,e,p);const id=c.user.uid;await A.signOut(sec);return id;},
+    reset:e=>A.sendPasswordResetEmail(auth,e),
+    async get(col,id){const x=await F.getDoc(F.doc(fdb,col,id));return x.exists()?x.data():null;},
+    put:(col,id,d)=>F.setDoc(F.doc(fdb,col,id),d),
+    patch:(col,id,d)=>F.updateDoc(F.doc(fdb,col,id),d),
+    remove:(col,id)=>F.deleteDoc(F.doc(fdb,col,id)),
+    newId:col=>F.doc(F.collection(fdb,col)).id,
+    nextCode(){return F.runTransaction(fdb,async t=>{const ref=F.doc(fdb,'meta','counter');const x=await t.get(ref);const n=x.exists()?Number(x.data().next)||1:1;if(x.exists())t.update(ref,{next:n+1});else t.set(ref,{next:n+1});return String(n).padStart(4,'0');});},
+    listen(q,next,err){
+      if(q.id)return F.onSnapshot(F.doc(fdb,q.col,q.id),x=>next(x.exists()?{[x.id]:x.data()}:{}),err);
+      const ref=F.query(F.collection(fdb,q.col),...(q.where||[]).map(w=>F.where(w[0],w[1],w[2])));
+      return F.onSnapshot(ref,x=>{const m={};x.forEach(d=>{m[d.id]=d.data();});next(m);},err);
+    }
+  };
+}
+function makeDemo(){
+  const D={companies:{},users:{},shifts:{},requests:{},logins:{},meta:{}};
+  const acc={'admin@demo.ru':{pass:'123456',uid:'demo-admin'}};
+  let cur=null;const cbs=[];const subs=new Set();
+  const clone=o=>JSON.parse(JSON.stringify(o));
+  const fire=()=>setTimeout(()=>subs.forEach(x=>x.run()),0);
+  const fail=c=>{const e=new Error(c);e.code=c;return e;};
+  const match=(d,w)=>w.every(([f,op,v])=>op==='=='?((d[f]===undefined?null:d[f])===v):op==='in'?v.includes(d[f]):true);
+  const emit=()=>setTimeout(()=>cbs.forEach(c=>c(cur)),0);
+  return {
+    demo:true,
+    onAuth(cb){cbs.push(cb);setTimeout(()=>cb(cur),0);},
+    async signIn(e,p){const a=acc[e];if(!a||a.pass!==p)throw fail('auth/invalid-credential');cur={uid:a.uid,email:e};emit();},
+    async signUp(e,p){if(acc[e])throw fail('auth/email-already-in-use');const id=uid();acc[e]={pass:p,uid:id};cur={uid:id,email:e};emit();return id;},
+    async signOut(){cur=null;emit();},
+    async createOther(e,p){if(acc[e])throw fail('auth/email-already-in-use');const id=uid();acc[e]={pass:p,uid:id};return id;},
+    async reset(){},
+    async get(col,id){return D[col][id]?clone(D[col][id]):null;},
+    async put(col,id,d){D[col][id]=clone(d);fire();},
+    async patch(col,id,d){if(!D[col][id])throw fail('not-found');Object.assign(D[col][id],clone(d));fire();},
+    async remove(col,id){delete D[col][id];fire();},
+    newId:()=>uid(),
+    async nextCode(){const n=(D.meta.counter&&D.meta.counter.next)||1;D.meta.counter={next:n+1};return String(n).padStart(4,'0');},
+    listen(q,next){const x={run(){if(q.id){next(D[q.col][q.id]?{[q.id]:clone(D[q.col][q.id])}:{});return;}const m={};for(const k in D[q.col])if(match(D[q.col][k],q.where||[]))m[k]=clone(D[q.col][k]);next(m);}};subs.add(x);setTimeout(()=>x.run(),0);return ()=>subs.delete(x);}
+  };
+}
+
+/* ---------- subscriptions ---------- */
+const SRC={users:{},shifts:{},requests:{}};
+let dataUnsubs=[],meUnsub=null;
+function mergeSrc(){
+  const mg=k=>Object.assign({},...Object.values(SRC[k]));
+  S.workers=mg('users');S.shifts=mg('shifts');S.requests=mg('requests');
+}
+function listen(kind,name,q){
+  const u=B.listen(q,m=>{SRC[kind][name]=m;mergeSrc();render();},e=>{console.error(e);S.error='Ошибка загрузки данных: '+(e.message||e.code);render();});
+  dataUnsubs.push(u);
+}
+let subKey='';
+function syncSubs(){
+  const r=myRights();const prof=S.workers[S.uid]||SRC.users.me&&SRC.users.me[S.uid];
+  const active=prof&&prof.status==='active'&&prof.active!==false;
+  const key=JSON.stringify([S.uid,S.month,r&&r.all,r&&r.set?[...r.set].sort():null,!!active]);
+  if(key===subKey)return;subKey=key;
+  dataUnsubs.forEach(u=>u());dataUnsubs=[];
+  ['shifts','requests'].forEach(k=>{SRC[k]={};});Object.keys(SRC.users).forEach(k=>{if(k!=='me')delete SRC.users[k];});
+  mergeSrc();
+  if(!S.uid)return;
+  if(r&&r.all){
+    listen('users','all',{col:'users'});
+    listen('shifts','mAll',{col:'shifts',where:[['month','==',S.month]]});
+    listen('shifts','oAll',{col:'shifts',where:[['end','==',null]]});
+    listen('requests','all',{col:'requests'});
+  }else if(r&&r.set&&r.set.size){
+    const ids=[...r.set].slice(0,30);
+    listen('users','mine',{col:'users',where:[['companyId','in',ids]]});
+    listen('shifts','mCo',{col:'shifts',where:[['companyId','in',ids],['month','==',S.month]]});
+    listen('shifts','oCo',{col:'shifts',where:[['companyId','in',ids],['end','==',null]]});
+    listen('requests','co',{col:'requests',where:[['companyId','in',ids]]});
+  }
+  if(active){
+    listen('shifts','mMe',{col:'shifts',where:[['workerId','==',S.uid],['month','==',S.month]]});
+    listen('shifts','oMe',{col:'shifts',where:[['workerId','==',S.uid],['end','==',null]]});
+    listen('requests','me',{col:'requests',where:[['workerId','==',S.uid]]});
+  }
+}
+async function createProfile(p,owner){
+  if(S.creating)return false;S.creating=true;render();
+  try{
+    const code=await B.nextCode();
+    const authEmail=S.email;
+    const data={code,name:p.name,phone:p.phone||'',email:p.email||'',authEmail,companyId:p.companyId||'',rate:0,role:owner?'super':'worker',manages:[],status:owner?'active':'pending',active:!!owner,createdAt:Date.now()};
+    await B.put('users',S.uid,data);
+    await B.put('logins','c_'+code,{email:authEmail,uid:S.uid});
+    if(p.phone)await B.put('logins','p_'+normPhone(p.phone),{email:authEmail,uid:S.uid});
+    return true;
+  }catch(e){console.error(e);S.error='Не удалось сохранить профиль: '+(e.code||e.message);return false;}
+  finally{S.creating=false;S.pendingProfile=null;render();}
+}
+function onAuthUser(u){
+  if(meUnsub){meUnsub();meUnsub=null;}
+  SRC.users={};S.profileLoaded=false;S.asAdminPreview=false;
+  S.uid=u?u.uid:null;S.email=u?u.email:'';S.me=S.uid;S.month=monthKey(new Date());S.tab='now';S.repWorker=null;S.repCompany='all';
+  subKey='';syncSubs();
+  if(!u){S.view='start';render();return;}
+  let first=true;
+  meUnsub=B.listen({col:'users',id:u.uid},m=>{
+    SRC.users.me=m;mergeSrc();S.profileLoaded=true;
+    const prof=m[u.uid];
+    if(!prof&&!S.creating){
+      if(S.pendingProfile)createProfile(S.pendingProfile,false);
+      else if(isOwnerEmail())createProfile({name:'Главный админ',email:S.email},true);
+    }
+    if(first&&prof){first=false;S.view=(myRights()?'admin':'worker');}
+    syncSubs();render();
+  },e=>{S.profileLoaded=true;S.error='Ошибка загрузки профиля: '+(e.message||e.code);render();});
+}
+
+/* ---------- start ---------- */
+async function init(){
+  render();
+  const slowT=setTimeout(()=>{if(!S.ready){S.slow=true;render();}},10000);
+  if(FIREBASE_CONFIG){
+    try{
+      const [app,auth,fs]=await Promise.all([import(FB_SDK+'firebase-app.js'),import(FB_SDK+'firebase-auth.js'),import(FB_SDK+'firebase-firestore.js')]);
+      B=makeFirebase({app,auth,fs});
+    }catch(e){S.error='Не удалось загрузить сайт. Проверьте интернет и обновите страницу.';S.ready=true;render();return;}
+  }else{
+    B=makeDemo();S.demo=true;OWNER_EMAILS.push('admin@demo.ru');
+  }
+  let gotCo=false,gotAuth=false;
+  const done=()=>{if(gotCo&&gotAuth&&!S.ready){S.ready=true;S.slow=false;clearTimeout(slowT);}render();};
+  B.listen({col:'companies'},m=>{S.companies=m;gotCo=true;done();},e=>{S.error='Ошибка загрузки: '+(e.message||e.code);gotCo=true;done();});
+  B.onAuth(u=>{onAuthUser(u);gotAuth=true;done();});
+}
+init();
+})();
+</script>
+</body>
+</html>

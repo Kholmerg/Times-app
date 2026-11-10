@@ -1,0 +1,92 @@
+rules_version = '2';
+// Правила защиты для «Табеля».
+// Главный админ задаётся в owners() ниже — тот же email, что в OWNER_EMAILS на сайте.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function owners() { return ['alina.drecruitment@gmail.com']; }
+
+    function signedIn() { return request.auth != null; }
+    function isOwner() {
+      return signedIn() && request.auth.token.email != null
+        && request.auth.token.email.lower() in owners();
+    }
+    function hasProfile() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+    function me() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function activeMe() { return hasProfile() && me().status == 'active' && me().active == true; }
+    function isSuper() { return isOwner() || (activeMe() && me().role == 'super'); }
+    function isManager() { return activeMe() && me().role == 'manager'; }
+    function manages(cid) { return isSuper() || (isManager() && cid in me().manages); }
+    function anyAdmin() { return isSuper() || isManager(); }
+    // время с телефона должно совпадать с серверным (±5 минут): нельзя отметиться задним числом
+    function near(t) {
+      return t is number && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
+    }
+
+    match /companies/{cid} {
+      allow read: if true;
+      allow write: if isSuper();
+    }
+
+    match /meta/counter {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.next == 2;
+      allow update: if signedIn() && request.resource.data.next == resource.data.next + 1;
+    }
+
+    // ID / телефон -> email для входа. Читать по одному можно, списком нельзя.
+    match /logins/{key} {
+      allow get: if true;
+      allow list: if false;
+      allow create: if signedIn() && (request.resource.data.uid == request.auth.uid || anyAdmin());
+      allow update, delete: if anyAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || manages(resource.data.companyId));
+      allow create: if signedIn() && (
+        (request.auth.uid == uid && (isOwner() || (
+            request.resource.data.role == 'worker'
+            && request.resource.data.status == 'pending'
+            && request.resource.data.active == false
+            && request.resource.data.rate == 0)))
+        || (manages(request.resource.data.companyId)
+            && (isSuper() || request.resource.data.role == 'worker'))
+      );
+      allow update: if manages(resource.data.companyId)
+        && manages(request.resource.data.companyId)
+        && (isSuper() || (resource.data.role == 'worker' && request.resource.data.role == 'worker'));
+      allow delete: if isSuper();
+    }
+
+    match /shifts/{sid} {
+      allow read: if signedIn()
+        && (resource.data.workerId == request.auth.uid || manages(resource.data.companyId));
+      allow create: if (activeMe()
+            && request.resource.data.workerId == request.auth.uid
+            && request.resource.data.companyId == me().companyId
+            && near(request.resource.data.start)
+            && request.resource.data.end == null)
+        || manages(request.resource.data.companyId);
+      allow update: if (activeMe()
+            && resource.data.workerId == request.auth.uid
+            && resource.data.end == null
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['end'])
+            && near(request.resource.data.end))
+        || (manages(resource.data.companyId) && manages(request.resource.data.companyId));
+      allow delete: if manages(resource.data.companyId);
+    }
+
+    match /requests/{rid} {
+      allow read: if signedIn()
+        && (resource.data.workerId == request.auth.uid || manages(resource.data.companyId));
+      allow create: if activeMe()
+        && request.resource.data.workerId == request.auth.uid
+        && request.resource.data.companyId == me().companyId
+        && request.resource.data.status == 'pending';
+      allow update, delete: if manages(resource.data.companyId);
+    }
+  }
+}
