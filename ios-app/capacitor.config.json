@@ -1,0 +1,18 @@
+{
+  "appId": "com.kholmerg.tabel",
+  "appName": "Табель",
+  "webDir": "www",
+  "server": {
+    "url": "https://kholmerg.github.io/Times-app/",
+    "allowNavigation": ["kholmerg.github.io", "*.firebaseapp.com", "*.googleapis.com", "www.gstatic.com", "www.hebcal.com"]
+  },
+  "ios": {
+    "contentInset": "always",
+    "scheme": "Tabel"
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "iconColor": "#17614f"
+    }
+  }
+}

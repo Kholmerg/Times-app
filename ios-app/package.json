@@ -1,0 +1,18 @@
+{
+  "name": "tabel-ios",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Табель — iOS-приложение (обёртка над сайтом)",
+  "scripts": {
+    "sync": "npx cap sync ios",
+    "open": "npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.6.0",
+    "@capacitor/ios": "8.6.0",
+    "@capacitor/local-notifications": "8.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0"
+  }
+}
