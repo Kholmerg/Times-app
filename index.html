@@ -129,6 +129,22 @@ tfoot td{font-weight:700;border-bottom:0}
 .toast[hidden]{display:none}
 .empty{color:var(--muted);text-align:center;padding:14px 0;font-size:14px}
 @media (max-width:420px){.tiles{grid-template-columns:1fr 1fr}.tiles .tile:last-child{grid-column:span 2}.timer{font-size:34px}}
+
+.seg{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
+.seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;font-weight:600;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.langs{display:flex;gap:2px;border:1px solid var(--line);border-radius:99px;padding:2px}
+.lang{border:0;background:transparent;border-radius:99px;padding:4px 8px;font-size:12px;font-weight:700;cursor:pointer;color:var(--muted)}
+.lang.on{background:var(--ink);color:var(--bg)}
+.paylines{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--muted)}
+.paylines b{color:var(--ink);font-variant-numeric:tabular-nums}
+.row.nowrap{flex-wrap:nowrap}
+.status.brk .dot{background:var(--warn);box-shadow:0 0 0 4px var(--warn-soft)}
+a.pill{text-decoration:none}
+a{color:var(--accent)}
+[dir="rtl"] th:first-child,[dir="rtl"] td:first-child{text-align:right}
+[dir="rtl"] th,[dir="rtl"] td{text-align:left}
+.shift .t{min-width:0}
 </style>
 </head>
 <body>
@@ -151,24 +167,27 @@ const FB_SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
 /* ======================= */
 (async function(){
 "use strict";
-const $app=document.getElementById('app'), $top=document.getElementById('top'), $modal=document.getElementById('modal'), $toast=document.getElementById('toast');
+const $app=document.getElementById('app'),$top=document.getElementById('top'),$modal=document.getElementById('modal'),$toast=document.getElementById('toast');
 
 /* ---------- helpers ---------- */
 const pad=n=>String(n).padStart(2,'0');
 const monthKey=d=>d.getFullYear()+'-'+pad(d.getMonth()+1);
 const dayKey=ms=>{const d=new Date(ms);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+const parseDay=k=>{const [y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d);};
+const addDays=(k,n)=>{const d=parseDay(k);d.setDate(d.getDate()+n);return dayKey(d.getTime());};
 const toInput=ms=>{const d=new Date(ms);return dayKey(ms)+'T'+pad(d.getHours())+':'+pad(d.getMinutes());};
 const fromInput=v=>{if(!v||v.indexOf('T')<0)return NaN;const [dt,tm]=v.split('T');const [y,m,d]=dt.split('-').map(Number);const [h,mi]=tm.split(':').map(Number);return new Date(y,m-1,d,h,mi).getTime();};
-const hm=ms=>{const t=Math.max(0,Math.round(ms/60000));return Math.floor(t/60)+':'+pad(t%60);};
+const hm=ms=>{const tt=Math.max(0,Math.round(ms/60000));return Math.floor(tt/60)+':'+pad(tt%60);};
 const hmH=h=>hm(h*3600000);
 const clock=ms=>{const d=new Date(ms);return pad(d.getHours())+':'+pad(d.getMinutes());};
 const WD=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
 const MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const MGEN=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
-const fmtDay=k=>{const [y,m,d]=k.split('-').map(Number);return d+' '+MGEN[m-1]+', '+WD[new Date(y,m-1,d).getDay()];};
+const fmtDay=k=>{const d=parseDay(k);return d.getDate()+' '+MGEN[d.getMonth()]+', '+WD[d.getDay()];};
+const fmtShort=k=>{const d=parseDay(k);return d.getDate()+' '+MGEN[d.getMonth()];};
 const fmtDT=ms=>{const d=new Date(ms);return d.getDate()+' '+MGEN[d.getMonth()]+' '+clock(ms);};
 const nf=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0});
-const money=n=>nf.format(Math.round(n))+' ₪';
+const money=n=>(n<0?'−':'')+nf.format(Math.abs(Math.round(n)))+' ₪';
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 const digits=s=>String(s||'').replace(/\D/g,'');
@@ -181,186 +200,289 @@ function findDup(field,val,exceptId){if(!val)return null;return Object.entries(S
 const isPendingReg=w=>w.status==='pending';
 const monthLabel=k=>{const [y,m]=k.split('-').map(Number);return MONTHS[m-1]+' '+y;};
 const shiftMonth=(k,dir)=>{const [y,m]=k.split('-').map(Number);return monthKey(new Date(y,m-1+dir,1));};
+const monthRange=m=>{const [y,mo]=m.split('-').map(Number);return [m+'-01',dayKey(new Date(y,mo,0).getTime())];};
+const monthsBetween=(a,b)=>{const out=[];let m=a.slice(0,7);const e=b.slice(0,7);while(m<=e&&out.length<6){out.push(m);m=shiftMonth(m,1);}return out;};
+const weekStartOf=k=>addDays(k,-parseDay(k).getDay());
 const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v);}catch(e){}}};
+const fmtDist=m=>m<1000?Math.round(m)+' м':(m/1000).toFixed(1).replace('.',',')+' км';
+const distM=(a,b)=>{const R=6371000,r=x=>x*Math.PI/180;const dLat=r(b.lat-a.lat),dLng=r(b.lng-a.lng);const h=Math.sin(dLat/2)**2+Math.cos(r(a.lat))*Math.cos(r(b.lat))*Math.sin(dLng/2)**2;return 2*R*Math.asin(Math.sqrt(h));};
+const mapUrl=l=>'https://maps.google.com/?q='+l.lat+','+l.lng;
 
-const DEFAULT_RULES={norm:8,ot1Hours:2,ot1:125,ot2:150,day:[100,100,100,100,100,125,150],breakMin:0};
+/* ---------- languages (worker screens) ---------- */
+let LANG=['ru','he','en'].includes(store.get('tabel.lang'))?store.get('tabel.lang'):'ru';
+const LOCALE={ru:'ru-RU',he:'he-IL',en:'en-GB'};
+const T={
+ru:{loginTitle:'Отметка рабочего времени',loginSub:'Войдите по ID, телефону или email.',loginId:'ID, телефон или email',password:'Пароль',signIn:'Войти',signingIn:'Входим…',forgot:'Забыли пароль?',firstTime:'Первый раз здесь?',register:'Зарегистрироваться',
+errEnter:'Введите логин и пароль',errNotFound:'Такой ID или телефон не найден',errTooMany:'Слишком много попыток. Подождите пару минут.',errNetwork:'Нет связи с сервером',errWrong:'Неверный логин или пароль',
+regTitle:'Регистрация',name:'Имя и фамилия',company:'Компания',phone:'Телефон',email:'Email',regHint:'Нужен телефон или email. Лучше указать email: по нему можно восстановить пароль.',pass6:'Пароль (от 6 символов)',again:'Ещё раз',send:'Отправить',cancel:'Отмена',noCompanies:'Компаний пока нет. Сейчас может зарегистрироваться только администратор.',
+eName:'Укажите имя',ePhoneOrEmail:'Укажите телефон или email',ePhone:'Проверьте номер телефона',eEmail:'Проверьте email',ePass6:'Пароль: минимум 6 символов',ePassMatch:'Пароли не совпадают',eNoCo:'Компаний пока нет. Попросите администратора добавить их.',ePhoneTaken:'Такой телефон уже зарегистрирован. Попробуйте войти.',eEmailTaken:'Такой email уже зарегистрирован. Попробуйте войти.',eWeak:'Слишком простой пароль',eFail:'Не получилось, попробуйте ещё раз',
+forgotTitle:'Восстановить пароль',forgotText:'Пришлём письмо со ссылкой для нового пароля. Работает, если при регистрации был указан email.',forgotPhone:'Регистрировались только по телефону? Обратитесь к старшему своей компании.',forgotSent:'Если такой email есть, письмо уже отправлено',
+almost:'Почти готово',almostSub:'Заполните данные, чтобы закончить регистрацию.',done:'Готово',
+pendingTitle:'Заявка на проверке',yourId:'Ваш ID',pendingText:'Старший или администратор скоро подтвердит регистрацию. Страница обновится сама.',rejectedTitle:'Регистрация отклонена',rejectedText:'Если это ошибка, обратитесь к старшему своей компании.',disabledTitle:'Доступ отключён',disabledText:'Обратитесь к старшему своей компании.',
+onShiftSince:'На смене с {t}',onBreakSince:'Перерыв с {t}',notOnShift:'Сейчас не на смене',startShift:'Начать смену',endShift:'Закончить смену',takeBreak:'Перерыв',resume:'Продолжить работу',locating:'Определяем место…',
+forgotShift:'Смена идёт уже больше {h} ч. Если вы забыли её закончить, нажмите «Закончить смену» и отправьте исправление времени.',
+worked:'Отработано',overtime:'Из них сверхурочно',toPay:'К выплате, примерно',myShifts:'Мои смены',forgotMark:'Забыл отметиться',noShifts:'В этом месяце смен пока нет.',running:'идёт',fix:'Исправить',onReview:'на проверке',breakMin:'перерыв {m} мин',
+myRequests:'Мои запросы',reqAddT:'Добавить смену',reqEditT:'Исправить смену',approved:'Одобрено',rejected:'Отклонено',waiting:'Ждёт ответа',monthLocked:'Месяц закрыт',
+hoursPay:'За часы',travel:'Проезд',extras:'Доплаты',deductions:'Вычеты',adjTitle:'Доплаты и вычеты',
+kBonus:'Доплата / премия',kTravel:'Проезд',kAdvance:'Аванс',kDeduction:'Вычет',
+fixTime:'Исправить время',reqText:'Запрос уйдёт старшему. Время изменится после одобрения.',start:'Начало',end:'Конец',comment:'Комментарий',commentPh:'Например: забыл нажать «Закончить»',eStart:'Укажите начало',eEnd:'Укажите конец',eOrder:'Конец должен быть позже начала',eLong:'Смена длиннее 24 часов, проверьте даты',
+whereToday:'Где вы работаете сегодня?',otherPlace:'Другое место',nearYou:'рядом с вами',
+tStarted:'Смена началась',tEnded:'Смена закончена: {h}',tReqSent:'Запрос отправлен старшему',tBreak:'Перерыв начался',tResume:'Работа продолжается',tNoGeo:'Место не определено, но время отмечено',
+shortShift:'Смена длилась меньше минуты. Закончить?',finish:'Закончить',logout:'Выйти',adminPanel:'Админ-панель',youAre:'Вы {r}.',roleSuper:'главный админ',roleManager:'старший',
+eNoRights:'Нет прав на это действие.',eNet:'Нет связи с сервером. Проверьте интернет.',eSave:'Не сохранилось, попробуйте ещё раз.',loading:'Загрузка…',holiday:'праздник',eve:'канун праздника'},
+he:{loginTitle:'דיווח שעות עבודה',loginSub:'כניסה עם מספר עובד, טלפון או אימייל.',loginId:'מספר עובד, טלפון או אימייל',password:'סיסמה',signIn:'כניסה',signingIn:'נכנסים…',forgot:'שכחת סיסמה?',firstTime:'פעם ראשונה כאן?',register:'הרשמה',
+errEnter:'יש להזין שם משתמש וסיסמה',errNotFound:'מספר עובד או טלפון לא נמצא',errTooMany:'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.',errNetwork:'אין חיבור לשרת',errWrong:'שם משתמש או סיסמה שגויים',
+regTitle:'הרשמה',name:'שם מלא',company:'חברה',phone:'טלפון',email:'אימייל',regHint:'נדרש טלפון או אימייל. עדיף אימייל: דרכו אפשר לשחזר סיסמה.',pass6:'סיסמה (לפחות 6 תווים)',again:'שוב',send:'שליחה',cancel:'ביטול',noCompanies:'עדיין אין חברות. כרגע רק מנהל יכול להירשם.',
+eName:'יש להזין שם',ePhoneOrEmail:'יש להזין טלפון או אימייל',ePhone:'בדקו את מספר הטלפון',eEmail:'בדקו את האימייל',ePass6:'סיסמה: לפחות 6 תווים',ePassMatch:'הסיסמאות לא תואמות',eNoCo:'עדיין אין חברות. בקשו מהמנהל להוסיף אותן.',ePhoneTaken:'הטלפון כבר רשום. נסו להיכנס.',eEmailTaken:'האימייל כבר רשום. נסו להיכנס.',eWeak:'הסיסמה פשוטה מדי',eFail:'לא הצליח, נסו שוב',
+forgotTitle:'שחזור סיסמה',forgotText:'נשלח מייל עם קישור לסיסמה חדשה. עובד אם נרשמתם עם אימייל.',forgotPhone:'נרשמתם רק עם טלפון? פנו לאחראי בחברה.',forgotSent:'אם האימייל קיים, המייל כבר נשלח',
+almost:'כמעט סיימנו',almostSub:'מלאו את הפרטים כדי לסיים את ההרשמה.',done:'סיום',
+pendingTitle:'הבקשה בבדיקה',yourId:'מספר העובד שלך',pendingText:'האחראי או המנהל יאשרו את ההרשמה בקרוב. הדף יתעדכן לבד.',rejectedTitle:'ההרשמה נדחתה',rejectedText:'אם זו טעות, פנו לאחראי בחברה.',disabledTitle:'הגישה חסומה',disabledText:'פנו לאחראי בחברה.',
+onShiftSince:'במשמרת מ-{t}',onBreakSince:'בהפסקה מ-{t}',notOnShift:'לא במשמרת כרגע',startShift:'התחלת משמרת',endShift:'סיום משמרת',takeBreak:'הפסקה',resume:'חזרה לעבודה',locating:'מאתרים מיקום…',
+forgotShift:'המשמרת פתוחה כבר יותר מ-{h} שעות. אם שכחת לסיים, לחץ על «סיום משמרת» ושלח תיקון שעות.',
+worked:'סה״כ שעות',overtime:'מתוכן שעות נוספות',toPay:'לתשלום, בערך',myShifts:'המשמרות שלי',forgotMark:'שכחתי לדווח',noShifts:'אין עדיין משמרות החודש.',running:'פתוחה',fix:'תיקון',onReview:'בבדיקה',breakMin:'הפסקה {m} דק׳',
+myRequests:'הבקשות שלי',reqAddT:'הוספת משמרת',reqEditT:'תיקון משמרת',approved:'אושר',rejected:'נדחה',waiting:'ממתין',monthLocked:'החודש סגור',
+hoursPay:'עבור שעות',travel:'נסיעות',extras:'תוספות',deductions:'ניכויים',adjTitle:'תוספות וניכויים',
+kBonus:'תוספת / בונוס',kTravel:'נסיעות',kAdvance:'מקדמה',kDeduction:'ניכוי',
+fixTime:'תיקון שעות',reqText:'הבקשה תישלח לאחראי. השעות ישתנו אחרי אישור.',start:'התחלה',end:'סיום',comment:'הערה',commentPh:'לדוגמה: שכחתי ללחוץ «סיום»',eStart:'יש להזין התחלה',eEnd:'יש להזין סיום',eOrder:'הסיום חייב להיות אחרי ההתחלה',eLong:'משמרת ארוכה מ-24 שעות, בדקו את התאריכים',
+whereToday:'איפה אתה עובד היום?',otherPlace:'מקום אחר',nearYou:'קרוב אליך',
+tStarted:'המשמרת התחילה',tEnded:'המשמרת הסתיימה: {h}',tReqSent:'הבקשה נשלחה לאחראי',tBreak:'ההפסקה התחילה',tResume:'חזרת לעבודה',tNoGeo:'המיקום לא זוהה, אבל השעה נרשמה',
+shortShift:'המשמרת נמשכה פחות מדקה. לסיים?',finish:'לסיים',logout:'יציאה',adminPanel:'ניהול',youAre:'את/ה {r}.',roleSuper:'מנהל ראשי',roleManager:'אחראי',
+eNoRights:'אין הרשאה לפעולה הזו.',eNet:'אין חיבור לשרת. בדקו את האינטרנט.',eSave:'לא נשמר, נסו שוב.',loading:'טוען…',holiday:'חג',eve:'ערב חג'},
+en:{loginTitle:'Work time clock',loginSub:'Sign in with your ID, phone or email.',loginId:'ID, phone or email',password:'Password',signIn:'Sign in',signingIn:'Signing in…',forgot:'Forgot password?',firstTime:'First time here?',register:'Register',
+errEnter:'Enter your login and password',errNotFound:'This ID or phone was not found',errTooMany:'Too many attempts. Wait a couple of minutes.',errNetwork:'No connection to the server',errWrong:'Wrong login or password',
+regTitle:'Registration',name:'Full name',company:'Company',phone:'Phone',email:'Email',regHint:'A phone or email is required. Email is better: you can reset your password with it.',pass6:'Password (6+ characters)',again:'Repeat',send:'Send',cancel:'Cancel',noCompanies:'No companies yet. Only the administrator can register now.',
+eName:'Enter your name',ePhoneOrEmail:'Enter a phone or email',ePhone:'Check the phone number',eEmail:'Check the email',ePass6:'Password: at least 6 characters',ePassMatch:'Passwords do not match',eNoCo:'No companies yet. Ask the administrator to add them.',ePhoneTaken:'This phone is already registered. Try signing in.',eEmailTaken:'This email is already registered. Try signing in.',eWeak:'Password is too simple',eFail:'Something went wrong, try again',
+forgotTitle:'Reset password',forgotText:'We will email you a link to set a new password. Works if you registered with an email.',forgotPhone:'Registered with a phone only? Ask your company supervisor.',forgotSent:'If this email exists, the message has been sent',
+almost:'Almost done',almostSub:'Fill in your details to finish registration.',done:'Done',
+pendingTitle:'Waiting for approval',yourId:'Your ID',pendingText:'A supervisor or administrator will approve your registration soon. This page updates by itself.',rejectedTitle:'Registration rejected',rejectedText:'If this is a mistake, contact your company supervisor.',disabledTitle:'Access disabled',disabledText:'Contact your company supervisor.',
+onShiftSince:'On shift since {t}',onBreakSince:'On break since {t}',notOnShift:'Not on shift',startShift:'Start shift',endShift:'End shift',takeBreak:'Break',resume:'Back to work',locating:'Getting location…',
+forgotShift:'This shift has been open for more than {h} h. If you forgot to end it, tap “End shift” and send a time correction.',
+worked:'Worked',overtime:'Of which overtime',toPay:'To be paid, approx.',myShifts:'My shifts',forgotMark:'Forgot to clock in',noShifts:'No shifts this month yet.',running:'open',fix:'Fix',onReview:'under review',breakMin:'break {m} min',
+myRequests:'My requests',reqAddT:'Add a shift',reqEditT:'Fix a shift',approved:'Approved',rejected:'Rejected',waiting:'Waiting',monthLocked:'Month closed',
+hoursPay:'For hours',travel:'Travel',extras:'Extras',deductions:'Deductions',adjTitle:'Extras and deductions',
+kBonus:'Extra / bonus',kTravel:'Travel',kAdvance:'Advance',kDeduction:'Deduction',
+fixTime:'Fix time',reqText:'The request goes to your supervisor. Time changes after approval.',start:'Start',end:'End',comment:'Comment',commentPh:'E.g. forgot to tap “End”',eStart:'Enter the start',eEnd:'Enter the end',eOrder:'End must be after start',eLong:'Shift is longer than 24 h, check the dates',
+whereToday:'Where are you working today?',otherPlace:'Another place',nearYou:'near you',
+tStarted:'Shift started',tEnded:'Shift ended: {h}',tReqSent:'Request sent to your supervisor',tBreak:'Break started',tResume:'Back to work',tNoGeo:'Location not found, but the time is recorded',
+shortShift:'The shift lasted less than a minute. End it?',finish:'End',logout:'Log out',adminPanel:'Admin',youAre:'You are {r}.',roleSuper:'main admin',roleManager:'a supervisor',
+eNoRights:'You don’t have permission for this.',eNet:'No connection to the server. Check the internet.',eSave:'Not saved, try again.',loading:'Loading…',holiday:'holiday',eve:'holiday eve'}
+};
+const t=(k,v)=>{let s=(T[LANG]&&T[LANG][k])||T.ru[k]||k;if(v)for(const x in v)s=s.split('{'+x+'}').join(v[x]);return s;};
+const lDay=k=>parseDay(k).toLocaleDateString(LOCALE[LANG],{day:'numeric',month:'long',weekday:'short'});
+const lMonth=m=>{const [y,mo]=m.split('-').map(Number);const s=new Date(y,mo-1,1).toLocaleDateString(LOCALE[LANG],{month:'long',year:'numeric'}).replace(/\s?г\.$/,'');return s.charAt(0).toUpperCase()+s.slice(1);};
+const lDT=ms=>new Date(ms).toLocaleDateString(LOCALE[LANG],{day:'numeric',month:'short'})+' '+clock(ms);
+const lMoney=n=>(n<0?'−':'')+new Intl.NumberFormat(LOCALE[LANG],{maximumFractionDigits:0}).format(Math.abs(Math.round(n)))+' ₪';
+
+/* ---------- rules ---------- */
+const DEFAULT_RULES={norm:8,ot1Hours:2,ot1:125,ot2:150,day:[100,100,100,100,100,125,150],breakMin:0,holiday:150,eve:125,maxShiftH:12};
 function rulesOf(c){
   const r=Object.assign({},DEFAULT_RULES,(c&&c.rules)||{});
   if(!Array.isArray(r.day)||r.day.length!==7)r.day=DEFAULT_RULES.day.slice();
-  ['norm','ot1Hours','ot1','ot2','breakMin'].forEach(k=>{r[k]=Number(r[k]);if(!isFinite(r[k]))r[k]=DEFAULT_RULES[k];});
+  ['norm','ot1Hours','ot1','ot2','breakMin','holiday','eve','maxShiftH'].forEach(k=>{r[k]=Number(r[k]);if(!isFinite(r[k]))r[k]=DEFAULT_RULES[k];});
+  if(r.maxShiftH<=0)r.maxShiftH=DEFAULT_RULES.maxShiftH;
   r.day=r.day.map((v,i)=>isFinite(Number(v))&&Number(v)>0?Number(v):DEFAULT_RULES.day[i]);
   return r;
 }
+const ADJ_KINDS={bonus:{sign:1,key:'kBonus'},travel:{sign:1,key:'kTravel'},advance:{sign:-1,key:'kAdvance'},deduction:{sign:-1,key:'kDeduction'}};
 
 /* ---------- state ---------- */
+const today=dayKey(Date.now());
 const S={
-  ready:false,slow:false,error:'',demo:false,uid:null,email:'',profileLoaded:false,busy:false,
-  companies:{},workers:{},shifts:{},requests:{},
+  ready:false,slow:false,error:'',demo:false,uid:null,email:'',profileLoaded:false,busy:false,busyClock:false,
+  companies:{},workers:{},shifts:{},requests:{},adj:{},audit:{},holidays:{},
   view:'start',me:null,asAdminPreview:false,
   tab:'now',month:monthKey(new Date()),repCompany:'all',repWorker:null,
-  login:{id:'',pin:''},loginErr:''
+  period:{mode:'month',month:monthKey(new Date()),week:weekStartOf(today),from:addDays(today,-13),to:today},
+  login:{id:'',pin:''},loginErr:'',showAllHol:false
 };
 let B=null;
 const isOwnerEmail=()=>!!S.email&&OWNER_EMAILS.map(normEmail).includes(S.email);
 
-/* ---------- pay calculation ---------- */
-function calcMonth(wid,month){
-  const w=S.workers[wid]||{};const r=rulesOf(S.companies[w.companyId]);const rate=Number(w.rate)||0;
-  const days={};let open=null;
-  for(const id in S.shifts){
-    const s=S.shifts[id];if(s.workerId!==wid)continue;
-    if(!s.end&&(!open||s.start>open.start))open=Object.assign({id},s);
-    const k=dayKey(s.start);if(k.slice(0,7)!==month)continue;
-    (days[k]=days[k]||{key:k,shifts:[]}).shifts.push(Object.assign({id},s));
-  }
-  const out={days:[],totalH:0,otH:0,pay:0,buckets:{},open,rate};
+function periodRange(){
+  const p=S.period;
+  if(p.mode==='week')return [p.week,addDays(p.week,6)];
+  if(p.mode==='custom'){let a=p.from,b=p.to;if(a>b)[a,b]=[b,a];if((parseDay(b)-parseDay(a))/864e5>92)b=addDays(a,92);return [a,b];}
+  return monthRange(p.month);
+}
+function periodLabel(){
+  const p=S.period,[a,b]=periodRange();
+  if(p.mode==='month')return monthLabel(p.month);
+  const da=parseDay(a),db=parseDay(b);
+  if(da.getMonth()===db.getMonth()&&da.getFullYear()===db.getFullYear())return da.getDate()+'–'+db.getDate()+' '+MGEN[db.getMonth()];
+  return fmtShort(a)+' – '+fmtShort(b);
+}
+
+/* ---------- calculation ---------- */
+function shiftWork(s,now){
+  const end=s.end||now||Date.now();let br=0;
+  (Array.isArray(s.breaks)?s.breaks:[]).forEach(b=>{const bs=Math.max(b.s,s.start),be=Math.min(b.e||end,end);if(be>bs)br+=be-bs;});
+  return {ms:Math.max(0,end-s.start-br),br};
+}
+const openBreak=s=>(Array.isArray(s.breaks)?s.breaks:[]).find(b=>!b.e)||null;
+function calc(wid,from,to){
+  const w=S.workers[wid]||{};const r=rulesOf(S.companies[w.companyId]);const rate=Number(w.rate)||0;const travelRate=Number(w.travel)||0;
+  const days={};
+  for(const id in S.shifts){const s=S.shifts[id];if(s.workerId!==wid)continue;const k=dayKey(s.start);if(k<from||k>to)continue;(days[k]=days[k]||{key:k,shifts:[]}).shifts.push(Object.assign({id},s));}
+  const out={days:[],totalH:0,otH:0,pay:0,buckets:{},rate,travelRate,travelDays:0,travel:0,plus:0,minus:0,adj:[],total:0};
   Object.keys(days).sort().reverse().forEach(k=>{
     const d=days[k];d.shifts.sort((a,b)=>a.start-b.start);
-    let ms=0;d.shifts.forEach(s=>{if(s.end&&s.end>s.start)ms+=s.end-s.start;});
-    let H=ms/3600000;if(r.breakMin>0&&H>6)H=Math.max(0,H-r.breakMin/60);
-    const wd=new Date(d.shifts[0].start).getDay();const dr=r.day[wd];
+    let ms=0,hasBreaks=false;d.shifts.forEach(s=>{if(s.end&&s.end>s.start){const x=shiftWork(s);ms+=x.ms;if(x.br>0)hasBreaks=true;}});
+    let H=ms/3600000;if(!hasBreaks&&r.breakMin>0&&H>6)H=Math.max(0,H-r.breakMin/60);
+    const wd=parseDay(k).getDay();let dr=r.day[wd];const hol=S.holidays[k];
+    if(hol){dr=Math.max(dr,hol.type==='eve'?r.eve:r.holiday);d.hol=hol;}
     const normal=Math.min(H,r.norm),o1=Math.min(Math.max(H-r.norm,0),r.ot1Hours),o2=Math.max(H-r.norm-r.ot1Hours,0);
     d.buckets={};d.pay=0;
-    [[normal,dr],[o1,Math.max(dr,r.ot1)],[o2,Math.max(dr,r.ot2)]].forEach(([h,p])=>{
-      if(h<=0)return;d.buckets[p]=(d.buckets[p]||0)+h;out.buckets[p]=(out.buckets[p]||0)+h;d.pay+=h*rate*p/100;
-    });
-    d.H=H;d.ot=o1+o2;d.dayRate=dr;out.totalH+=H;out.otH+=o1+o2;out.pay+=d.pay;out.days.push(d);
+    [[normal,dr],[o1,Math.max(dr,r.ot1)],[o2,Math.max(dr,r.ot2)]].forEach(([h,p])=>{if(h<1/60)return;d.buckets[p]=(d.buckets[p]||0)+h;out.buckets[p]=(out.buckets[p]||0)+h;d.pay+=h*rate*p/100;});
+    d.H=H;d.ot=o1+o2;d.dayRate=dr;out.totalH+=H;out.otH+=o1+o2;out.pay+=d.pay;if(H>=1/60)out.travelDays++;out.days.push(d);
   });
+  for(const id in S.adj){const a=S.adj[id];if(a.workerId!==wid||a.date<from||a.date>to)continue;out.adj.push(Object.assign({id},a));const v=Number(a.amount)||0;if(v>=0)out.plus+=v;else out.minus+=-v;}
+  out.adj.sort((a,b)=>a.date<b.date?1:-1);
+  out.travel=out.travelDays*travelRate;out.total=out.pay+out.travel+out.plus-out.minus;
   return out;
 }
 const openShiftOf=wid=>{let o=null;for(const id in S.shifts){const s=S.shifts[id];if(s.workerId===wid&&!s.end&&(!o||s.start>o.start))o=Object.assign({id},s);}return o;};
+const isLocked=(cid,m)=>{const c=S.companies[cid];return !!(c&&Array.isArray(c.locked)&&c.locked.includes(m));};
+const shiftLocked=s=>isLocked(s.companyId,s.month||dayKey(s.start).slice(0,7));
+const siteOf=s=>{const c=S.companies[s.companyId]||{};return (c.sites||[]).find(x=>x.id===s.siteId)||null;};
+
+/* ---------- rights ---------- */
 const roleOf=w=>(w&&(w.role==='manager'||w.role==='super'))?w.role:'worker';
 function rightsOf(w){const r=roleOf(w);if(r==='worker'||w.active===false||w.status!=='active')return null;return r==='super'?{all:true,roles:true,set:null,role:r}:{all:false,roles:false,set:new Set(Array.isArray(w.manages)?w.manages:[]),role:r};}
-function myRights(){
-  if(!S.uid)return null;
-  if(isOwnerEmail())return {all:true,roles:true,owner:true,set:null,role:'owner'};
-  return S.workers[S.uid]?rightsOf(S.workers[S.uid]):null;
-}
-function adm(){
-  if(S.asAdminPreview&&S.me)return rightsOf(S.workers[S.me]||{});
-  return myRights();
-}
+function myRights(){if(!S.uid)return null;if(isOwnerEmail())return {all:true,roles:true,owner:true,set:null,role:'owner'};return S.workers[S.uid]?rightsOf(S.workers[S.uid]):null;}
+function adm(){if(S.asAdminPreview&&S.me)return rightsOf(S.workers[S.me]||{});return myRights();}
 const inScope=cid=>{const a=adm();return !!a&&(a.all||a.set.has(cid));};
 const wScope=wid=>{const w=S.workers[wid];return !!w&&inScope(w.companyId);};
+const sortedCompanies=()=>Object.entries(S.companies).sort((a,b)=>String(a[1].name).localeCompare(String(b[1].name),'ru'));
+const sortedWorkers=()=>Object.entries(S.workers).sort((a,b)=>String(a[1].code).localeCompare(String(b[1].code)));
 const scopedCompanies=()=>sortedCompanies().filter(([id])=>inScope(id));
 const pendingRegs=()=>Object.entries(S.workers).filter(([,w])=>isPendingReg(w)&&inScope(w.companyId));
 const managersOf=cid=>Object.values(S.workers).filter(w=>roleOf(w)==='manager'&&Array.isArray(w.manages)&&w.manages.includes(cid)&&w.active!==false);
 const rolePill=w=>{const r=roleOf(w);if(r==='super')return ' <span class="pill">главный админ</span>';if(r==='manager')return ' <span class="pill">старший</span>';return '';};
 const pending=()=>Object.entries(S.requests).filter(([,r])=>r.status==='pending'&&wScope(r.workerId));
 const companyName=id=>(S.companies[id]&&S.companies[id].name)||'Без компании';
-const sortedCompanies=()=>Object.entries(S.companies).sort((a,b)=>String(a[1].name).localeCompare(String(b[1].name),'ru'));
-const sortedWorkers=()=>Object.entries(S.workers).sort((a,b)=>String(a[1].code).localeCompare(String(b[1].code)));
+function canEditPerson(w){const a=adm();return !!a&&(a.roles||(roleOf(w)==='worker'&&inScope(w.companyId)));}
+const myName=()=>(S.workers[S.uid]&&S.workers[S.uid].name)||S.email||'';
 
 /* ---------- data layer ---------- */
-const put=(col,id,data)=>B.put(col==='workers'?'users':col,id,data);
-const patch=(col,id,data)=>B.patch(col==='workers'?'users':col,id,data);
-const remove=(col,id)=>B.remove(col==='workers'?'users':col,id);
-const newId=col=>B.newId(col);
-function errText(e){
-  const c=String(e&&e.code||'');
-  if(c.includes('permission-denied'))return 'Нет прав на это действие.';
-  if(c.includes('unavailable')||c.includes('network'))return 'Нет связи с сервером. Проверьте интернет.';
-  return 'Не сохранилось, попробуйте ещё раз.';
-}
-async function safe(fn,okMsg){
-  try{await fn();if(okMsg)toast(okMsg);return true;}
-  catch(e){console.error(e);toast(errText(e));return false;}
-}
+const COL={workers:'users',adj:'adjustments'};
+const put=(col,id,data)=>B.put(COL[col]||col,id,data);
+const patch=(col,id,data)=>B.patch(COL[col]||col,id,data);
+const remove=(col,id)=>B.remove(COL[col]||col,id);
+const newId=col=>B.newId(COL[col]||col);
+function errText(e){const c=String(e&&e.code||'');if(c.includes('permission-denied'))return t('eNoRights');if(c.includes('unavailable')||c.includes('network'))return t('eNet');return t('eSave');}
+async function safe(fn,okMsg){try{await fn();if(okMsg)toast(okMsg);return true;}catch(e){console.error(e);toast(errText(e));return false;}}
 let toastT=null;
-function toast(msg){$toast.textContent=msg;$toast.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{$toast.hidden=true;},3200);}
+function toast(msg){$toast.textContent=msg;$toast.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>{$toast.hidden=true;},3600);}
+function getLoc(){
+  return new Promise(res=>{
+    if(!navigator.geolocation)return res(null);
+    let done=false;const fin=v=>{if(done)return;done=true;clearTimeout(tm);res(v);};
+    const tm=setTimeout(()=>fin(null),9000);
+    try{navigator.geolocation.getCurrentPosition(p=>fin({lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6),acc:Math.round(p.coords.accuracy||0)}),()=>fin(null),{enableHighAccuracy:true,timeout:8000,maximumAge:60000});}catch(e){fin(null);}
+  });
+}
+async function logAudit(action,s,sid,before,after){
+  try{await B.put('audit',B.newId('audit'),{action,shiftId:sid||null,workerId:s.workerId,companyId:s.companyId||'',month:(after&&after.start?dayKey(after.start):dayKey(s.start)).slice(0,7),day:dayKey((before&&before.start)||(after&&after.start)||s.start),before:before||null,after:after||null,by:S.uid,byName:myName(),at:Date.now()});}catch(e){console.error('audit',e);}
+}
+const snap=s=>s?{start:s.start,end:s.end||null,breakMin:Math.round(shiftWork(s,s.end||s.start).br/60000)}:null;
 
-/* ---------- views ---------- */
+/* ---------- top bar ---------- */
+function langSwitch(){return '<div class="langs">'+[['ru','RU'],['he','עב'],['en','EN']].map(([k,l])=>'<button class="lang'+(LANG===k?' on':'')+'" data-act="lang" data-arg="'+k+'">'+l+'</button>').join('')+'</div>';}
 function topBar(){
-  let right='';
-  const r=myRights();
-  if(S.asAdminPreview){
-    right='<button class="btn ghost" data-act="backAdmin">← Выйти из просмотра</button>';
-  }else if(S.uid){
-    if(S.view==='worker'&&r)right+='<button class="btn ghost" data-act="goAdmin">Админ-панель</button>';
+  let right='';const r=myRights();
+  if(S.asAdminPreview)right='<button class="btn ghost" data-act="backAdmin">← Выйти из просмотра</button>';
+  else if(S.uid){
+    if(S.view!=='admin')right+=langSwitch();
+    if(S.view==='worker'&&r)right+='<button class="btn ghost" data-act="goAdmin">'+t('adminPanel')+'</button>';
     if(S.view==='admin'&&r&&S.workers[S.uid]&&S.workers[S.uid].companyId)right+='<button class="btn ghost" data-act="myTable">Мой табель</button>';
-    right+='<button class="btn ghost" data-act="logout">Выйти</button>';
-  }
+    right+='<button class="btn ghost" data-act="logout">'+(S.view==='admin'?'Выйти':t('logout'))+'</button>';
+  }else right+=langSwitch();
   return '<div class="brand"><i aria-hidden="true"></i>Табель</div>'+(S.demo?'<span class="pill warn">Демо: данные не сохраняются</span>':'')+'<div class="sp"></div>'+right;
 }
 
+/* ---------- worker-facing screens ---------- */
+const fld=(id,label,input)=>'<div class="field"><label for="'+id+'">'+label+'</label>'+input+'</div>';
 function startView(){
   let h='';
-  if(S.demo)h+='<div class="banner">Демо-режим: сайт ещё не подключён к базе. Войдите как <b>admin@demo.ru</b>, пароль <b>123456</b>.</div>';
-  h+='<section class="card"><h1>Отметка рабочего времени</h1><p class="muted">Войдите по ID, телефону или email.</p>'+
+  if(S.demo)h+='<div class="banner">Демо-режим: сайт не подключён к базе. Вход: <b>admin@demo.ru</b> / <b>123456</b>.</div>';
+  h+='<section class="card"><h1>'+t('loginTitle')+'</h1><p class="muted">'+t('loginSub')+'</p>'+
   '<form data-form="login" class="card" style="padding:0;border:0;gap:10px">'+
-  '<div class="field"><label for="lid">ID, телефон или email</label><input id="lid" data-bind="id" autocomplete="username" autocapitalize="off" placeholder="0001" value="'+esc(S.login.id)+'"></div>'+
-  '<div class="field"><label for="lpin">Пароль</label><input id="lpin" data-bind="pin" type="password" autocomplete="current-password" value="'+esc(S.login.pin)+'"></div>'+
+  fld('lid',t('loginId'),'<input id="lid" data-bind="id" dir="ltr" autocomplete="username" autocapitalize="off" placeholder="0001" value="'+esc(S.login.id)+'">')+
+  fld('lpin',t('password'),'<input id="lpin" data-bind="pin" dir="ltr" type="password" autocomplete="current-password" value="'+esc(S.login.pin)+'">')+
   (S.loginErr?'<p class="err">'+esc(S.loginErr)+'</p>':'')+
-  '<button class="btn primary big" type="submit"'+(S.busy?' disabled':'')+'>'+(S.busy?'Входим…':'Войти')+'</button></form>'+
-  '<div class="row"><button class="btn ghost" data-act="forgot">Забыли пароль?</button></div>'+
-  '<div class="row between" style="border-top:1px solid var(--line);padding-top:12px"><span class="muted">Первый раз здесь?</span><button class="btn" data-act="regForm">Зарегистрироваться</button></div></section>';
+  '<button class="btn primary big" type="submit"'+(S.busy?' disabled':'')+'>'+(S.busy?t('signingIn'):t('signIn'))+'</button></form>'+
+  '<div class="row"><button class="btn ghost" data-act="forgot">'+t('forgot')+'</button></div>'+
+  '<div class="row between" style="border-top:1px solid var(--line);padding-top:12px"><span class="muted">'+t('firstTime')+'</span><button class="btn" data-act="regForm">'+t('register')+'</button></div></section>';
   return h;
 }
 function profileFormView(){
   const cs=sortedCompanies();
-  return '<section class="card"><h1>Почти готово</h1><p class="muted">Заполните данные, чтобы закончить регистрацию.</p>'+
+  return '<section class="card"><h1>'+t('almost')+'</h1><p class="muted">'+t('almostSub')+'</p>'+
   '<form data-form="profile" style="display:flex;flex-direction:column;gap:12px">'+
-  fld('pname','Имя и фамилия','<input id="pname" name="name" required autocomplete="name">')+
-  fld('pcomp','Компания','<select id="pcomp" name="companyId">'+cs.map(([cid,c])=>'<option value="'+cid+'">'+esc(c.name)+'</option>').join('')+'</select>')+
-  fld('pphone','Телефон','<input id="pphone" name="phone" type="tel" autocomplete="tel">')+
-  '<p class="err" id="perr"></p><button class="btn primary" type="submit">Готово</button></form></section>';
+  fld('pname',t('name'),'<input id="pname" name="name" required autocomplete="name">')+
+  fld('pcomp',t('company'),'<select id="pcomp" name="companyId">'+cs.map(([cid,c])=>'<option value="'+cid+'">'+esc(c.name)+'</option>').join('')+'</select>')+
+  fld('pphone',t('phone'),'<input id="pphone" name="phone" type="tel" dir="ltr" autocomplete="tel">')+
+  '<p class="err" id="perr"></p><button class="btn primary" type="submit">'+t('done')+'</button></form></section>';
 }
 function statusView(){
   const w=S.workers[S.uid]||{};
-  if(w.status==='pending')return '<section class="card"><h1>Заявка на проверке</h1><p>Ваш ID: <b class="tnum" style="font-size:22px">'+esc(w.code)+'</b></p><p class="muted">Старший или администратор скоро подтвердит регистрацию. Страница обновится сама.</p></section>';
-  if(w.status==='rejected')return '<section class="card"><h1>Регистрация отклонена</h1><p class="muted">Если это ошибка, обратитесь к старшему своей компании.</p></section>';
-  return '<section class="card"><h1>Доступ отключён</h1><p class="muted">Обратитесь к старшему своей компании.</p></section>';
+  if(w.status==='pending')return '<section class="card"><h1>'+t('pendingTitle')+'</h1><p>'+t('yourId')+': <b class="tnum" style="font-size:22px">'+esc(w.code)+'</b></p><p class="muted">'+t('pendingText')+'</p></section>';
+  if(w.status==='rejected')return '<section class="card"><h1>'+t('rejectedTitle')+'</h1><p class="muted">'+t('rejectedText')+'</p></section>';
+  return '<section class="card"><h1>'+t('disabledTitle')+'</h1><p class="muted">'+t('disabledText')+'</p></section>';
 }
-
 function plural(n,a,b,c){const m10=n%10,m100=n%100;if(m10===1&&m100!==11)return a;if(m10>=2&&m10<=4&&(m100<10||m100>=20))return b;return c;}
-
-function monthNav(){
-  return '<div class="monthnav"><button class="btn sm" data-act="month" data-arg="-1" aria-label="Предыдущий месяц">←</button><strong>'+monthLabel(S.month)+'</strong><button class="btn sm" data-act="month" data-arg="1" aria-label="Следующий месяц">→</button></div>';
-}
-function bucketPills(b){
-  return Object.keys(b).map(Number).sort((x,y)=>x-y).map(p=>'<span class="pill'+(p>100?' warn':' grey')+'">'+p+'% · '+hmH(b[p])+'</span>').join(' ');
-}
+function statusPill(s){return s==='approved'?'<span class="pill">'+t('approved')+'</span>':s==='rejected'?'<span class="pill stop">'+t('rejected')+'</span>':'<span class="pill warn">'+t('waiting')+'</span>';}
+function bucketPills(b){return Object.keys(b).map(Number).sort((x,y)=>x-y).map(p=>'<span class="pill'+(p>100?' warn':' grey')+'">'+p+'% · '+hmH(b[p])+'</span>').join(' ');}
 
 function workerView(){
-  const wid=S.me,w=S.workers[wid],m=calcMonth(wid,S.month),open=openShiftOf(wid);
+  const wid=S.me,w=S.workers[wid],[mf,mt]=monthRange(S.month),m=calc(wid,mf,mt),open=openShiftOf(wid);
+  const r=rulesOf(S.companies[w.companyId]);const locked=isLocked(w.companyId,S.month);
   let h='';
   if(S.asAdminPreview)h+='<div class="banner">Вы смотрите приложение глазами работника. Кнопки работают по-настоящему.</div>';
-  else if(rightsOf(w))h+='<div class="banner" style="background:var(--accent-soft);color:var(--accent)">Вы '+(roleOf(w)==='super'?'главный админ':'старший')+'.<button class="btn sm" data-act="goAdmin">Открыть админ-панель</button></div>';
-  h+='<section class="card"><div class="row between"><div><h1>'+esc(w.name)+'</h1><p class="muted small">'+esc(companyName(w.companyId))+' · ID '+esc(w.code)+'</p></div></div>';
+  else if(rightsOf(w))h+='<div class="banner" style="background:var(--accent-soft);color:var(--accent)">'+t('youAre',{r:roleOf(w)==='super'?t('roleSuper'):t('roleManager')})+'<button class="btn sm" data-act="goAdmin">'+t('adminPanel')+'</button></div>';
+  h+='<section class="card"><div><h1>'+esc(w.name)+'</h1><p class="muted small">'+esc(companyName(w.companyId))+' · ID '+esc(w.code)+'</p></div>';
   if(open){
-    h+='<div class="status on"><span class="dot"></span>На смене с '+clock(open.start)+(dayKey(open.start)!==dayKey(Date.now())?' ('+fmtDay(dayKey(open.start))+')':'')+'</div>'+
-    '<div class="timer" data-since="'+open.start+'">'+hm(Date.now()-open.start)+'</div>'+
-    '<button class="btn stop big" data-act="clockOut" data-arg="'+open.id+'">Закончить смену</button>';
+    const ob=openBreak(open);const site=siteOf(open);
+    if(Date.now()-open.start>r.maxShiftH*3600000)h+='<div class="banner" style="background:var(--stop-soft);color:var(--stop)">'+t('forgotShift',{h:r.maxShiftH})+'</div>';
+    h+='<div class="status on'+(ob?' brk':'')+'"><span class="dot"></span>'+(ob?t('onBreakSince',{t:clock(ob.s)}):t('onShiftSince',{t:clock(open.start)}))+(dayKey(open.start)!==dayKey(Date.now())?' ('+lDay(dayKey(open.start))+')':'')+'</div>'+
+    (site?'<p class="muted small">📍 '+esc(site.name)+'</p>':'')+
+    '<div class="timer" data-work="'+open.id+'">'+hm(shiftWork(open).ms)+'</div>';
+    if(S.busyClock)h+='<button class="btn stop big" disabled>'+t('locating')+'</button>';
+    else h+='<div class="row nowrap"><button class="btn big" style="flex:1" data-act="'+(ob?'breakEnd':'breakStart')+'" data-arg="'+open.id+'">'+(ob?t('resume'):t('takeBreak'))+'</button><button class="btn stop big" style="flex:1.4" data-act="clockOut" data-arg="'+open.id+'">'+t('endShift')+'</button></div>';
   }else{
-    h+='<div class="status"><span class="dot"></span>Сейчас не на смене</div>'+
-    '<button class="btn primary big" data-act="clockIn">Начать смену</button>';
+    h+='<div class="status"><span class="dot"></span>'+t('notOnShift')+'</div>'+
+    (S.busyClock?'<button class="btn primary big" disabled>'+t('locating')+'</button>':'<button class="btn primary big" data-act="clockIn">'+t('startShift')+'</button>');
   }
   h+='</section>';
-  h+=monthNav();
-  h+='<div class="tiles"><div class="tile"><span>Отработано</span><b>'+hmH(m.totalH)+'</b></div><div class="tile"><span>Из них сверхурочно</span><b>'+hmH(m.otH)+'</b></div><div class="tile"><span>К выплате, примерно</span><b>'+(m.rate?money(m.pay):'—')+'</b></div></div>';
+  h+='<div class="monthnav"><button class="btn sm" data-act="month" data-arg="-1" aria-label="prev">'+(LANG==='he'?'→':'←')+'</button><strong>'+lMonth(S.month)+(locked?' 🔒':'')+'</strong><button class="btn sm" data-act="month" data-arg="1" aria-label="next">'+(LANG==='he'?'←':'→')+'</button></div>';
+  h+='<div class="tiles"><div class="tile"><span>'+t('worked')+'</span><b>'+hmH(m.totalH)+'</b></div><div class="tile"><span>'+t('overtime')+'</span><b>'+hmH(m.otH)+'</b></div><div class="tile"><span>'+t('toPay')+'</span><b>'+(m.rate?lMoney(m.total):'—')+'</b></div></div>';
+  if(m.rate&&(m.travel||m.plus||m.minus)){
+    h+='<div class="paylines small"><span>'+t('hoursPay')+': <b>'+lMoney(m.pay)+'</b></span>'+(m.travel?'<span>'+t('travel')+': <b>'+lMoney(m.travel)+'</b></span>':'')+(m.plus?'<span>'+t('extras')+': <b>+'+lMoney(m.plus)+'</b></span>':'')+(m.minus?'<span>'+t('deductions')+': <b>−'+lMoney(m.minus)+'</b></span>':'')+'</div>';
+  }
   if(Object.keys(m.buckets).length)h+='<div class="row">'+bucketPills(m.buckets)+'</div>';
-  h+='<section class="card"><div class="row between"><h2>Мои смены</h2><button class="btn sm" data-act="reqAdd">Забыл отметиться</button></div>';
-  if(!m.days.length)h+='<p class="empty">В этом месяце смен пока нет.</p>';
+  if(m.adj.length){
+    h+='<section class="card"><h2>'+t('adjTitle')+'</h2>'+m.adj.map(a=>'<div class="list-item"><div class="grow"><div>'+t((ADJ_KINDS[a.kind]||{}).key||'kBonus')+(a.note?' · '+esc(a.note):'')+'</div><div class="muted small">'+lDay(a.date)+'</div></div><b class="tnum">'+(a.amount>=0?'+':'')+lMoney(a.amount)+'</b></div>').join('')+'</section>';
+  }
+  h+='<section class="card"><div class="row between"><h2>'+t('myShifts')+'</h2>'+(locked?'<span class="pill grey">🔒 '+t('monthLocked')+'</span>':'<button class="btn sm" data-act="reqAdd">'+t('forgotMark')+'</button>')+'</div>';
+  if(!m.days.length)h+='<p class="empty">'+t('noShifts')+'</p>';
   m.days.forEach(d=>{
-    h+='<div class="day"><div class="row between"><h3>'+fmtDay(d.key)+'</h3><span class="tnum"><b>'+hmH(d.H)+'</b>'+(m.rate?' · '+money(d.pay):'')+'</span></div>';
+    h+='<div class="day"><div class="row between"><h3>'+lDay(d.key)+(d.hol?' <span class="pill warn">'+(d.hol.type==='eve'?t('eve'):t('holiday'))+'</span>':'')+'</h3><span class="tnum"><b>'+hmH(d.H)+'</b>'+(m.rate?' · '+lMoney(d.pay):'')+'</span></div>';
     d.shifts.forEach(s=>{
-      const req=Object.values(S.requests).some(r=>r.shiftId===s.id&&r.status==='pending');
-      h+='<div class="shift"><span class="t">'+clock(s.start)+' – '+(s.end?clock(s.end):'идёт')+(s.end?' <span class="muted">('+hm(s.end-s.start)+')</span>':'')+'</span>'+
-      (req?'<span class="pill warn">на проверке</span>':(s.end?'<button class="btn sm ghost" data-act="reqEdit" data-arg="'+s.id+'">Исправить</button>':''))+'</div>';
+      const req=Object.values(S.requests).some(q=>q.shiftId===s.id&&q.status==='pending');const x=shiftWork(s);const site=siteOf(s);
+      h+='<div class="shift"><span class="t">'+clock(s.start)+' – '+(s.end?clock(s.end):t('running'))+(s.end?' <span class="muted">('+hm(x.ms)+')</span>':'')+(x.br>=60000?' <span class="muted small">· '+t('breakMin',{m:Math.round(x.br/60000)})+'</span>':'')+(site?' <span class="muted small">· '+esc(site.name)+'</span>':'')+'</span>'+
+      (req?'<span class="pill warn">'+t('onReview')+'</span>':(s.end&&!locked?'<button class="btn sm ghost" data-act="reqEdit" data-arg="'+s.id+'">'+t('fix')+'</button>':''))+'</div>';
     });
     const extra=Object.keys(d.buckets).map(Number).filter(p=>p>100);
     if(extra.length)h+='<div class="row">'+extra.map(p=>'<span class="pill warn">'+p+'% · '+hmH(d.buckets[p])+'</span>').join('')+'</div>';
     h+='</div>';
   });
   h+='</section>';
-  const reqs=Object.entries(S.requests).filter(([,r])=>r.workerId===wid).sort((a,b)=>b[1].createdAt-a[1].createdAt).slice(0,8);
-  if(reqs.length){
-    h+='<section class="card"><h2>Мои запросы</h2>'+reqs.map(([,r])=>'<div class="list-item"><div class="grow"><div>'+(r.type==='add'?'Добавить смену':'Исправить смену')+'</div><div class="muted small tnum">'+fmtDT(r.start)+' – '+clock(r.end)+'</div></div>'+statusPill(r.status)+'</div>').join('')+'</section>';
-  }
+  const reqs=Object.entries(S.requests).filter(([,q])=>q.workerId===wid).sort((a,b)=>b[1].createdAt-a[1].createdAt).slice(0,8);
+  if(reqs.length)h+='<section class="card"><h2>'+t('myRequests')+'</h2>'+reqs.map(([,q])=>'<div class="list-item"><div class="grow"><div>'+(q.type==='add'?t('reqAddT'):t('reqEditT'))+'</div><div class="muted small tnum">'+lDT(q.start)+' – '+clock(q.end)+'</div></div>'+statusPill(q.status)+'</div>').join('')+'</section>';
   return h;
 }
-function statusPill(s){return s==='approved'?'<span class="pill">Одобрено</span>':s==='rejected'?'<span class="pill stop">Отклонено</span>':'<span class="pill warn">Ждёт ответа</span>';}
 
+/* ---------- admin ---------- */
 function adminView(){
   const a=adm(),n=pending().length;
   const tabs=[['now','Сейчас',''],['report','Отчёт',''],['requests','Запросы',n],['workers','Работники',pendingRegs().length],['companies','Компании','']];
@@ -369,65 +491,113 @@ function adminView(){
   h+=({now:adminNow,report:adminReport,requests:adminRequests,workers:adminWorkers,companies:adminCompanies}[S.tab]||adminNow)();
   return h;
 }
-
+function geoPills(s){
+  const site=siteOf(s);let h='';
+  [['start','начало'],['end','конец']].forEach(([k,lbl])=>{
+    if(k==='end'&&!s.end)return;
+    const loc=s[k+'Loc'];
+    if(!loc){if(s.createdAt&&!s.editedAt&&s.source!=='admin')h+=' <span class="pill grey" title="'+lbl+'">'+lbl+': без места</span>';return;}
+    if(site&&isFinite(site.lat)&&isFinite(site.lng)){
+      const d=distM(loc,site);const ok=d<=(Number(site.radius)||200)+Math.min(loc.acc||0,300);
+      h+=' <a class="pill'+(ok?'':' warn')+'" href="'+mapUrl(loc)+'" target="_blank" rel="noopener">'+lbl+': '+(ok?'на объекте':'далеко, '+fmtDist(d))+'</a>';
+    }else h+=' <a class="pill grey" href="'+mapUrl(loc)+'" target="_blank" rel="noopener">📍 '+lbl+'</a>';
+  });
+  return h;
+}
 function adminNow(){
-  const open=Object.entries(S.shifts).filter(([,s])=>!s.end&&wScope(s.workerId)).sort((a,b)=>a[1].start-b[1].start);
-  let h='<section class="card"><div class="row between"><h2>Сейчас на смене</h2><span class="pill">'+open.length+'</span></div>';
+  const now=Date.now();
+  const open=Object.entries(S.shifts).filter(([,s])=>!s.end&&wScope(s.workerId)).map(([id,s])=>{const r=rulesOf(S.companies[s.companyId]);return {id,s,forgot:now-s.start>r.maxShiftH*3600000,maxH:r.maxShiftH};}).sort((a,b)=>(b.forgot-a.forgot)||(a.s.start-b.s.start));
+  const forgotN=open.filter(x=>x.forgot).length;
+  let h='';
+  if(forgotN)h+='<div class="banner" style="background:var(--stop-soft);color:var(--stop)">'+forgotN+' '+plural(forgotN,'смена открыта','смены открыты','смен открыты')+' слишком долго — похоже, забыли нажать «Закончить».</div>';
+  h+='<section class="card"><div class="row between"><h2>Сейчас на смене</h2><span class="pill">'+open.length+'</span></div>';
   if(!open.length)h+='<p class="empty">Никого нет на смене.</p>';
-  open.forEach(([id,s])=>{const w=S.workers[s.workerId]||{};
-    h+='<div class="list-item"><div class="grow"><div><b>'+esc(w.name||'?')+'</b> <span class="muted small">'+esc(w.code||'')+'</span></div><div class="muted small">'+esc(companyName(s.companyId||w.companyId))+' · с '+fmtDT(s.start)+'</div></div><span class="tnum" data-since="'+s.start+'">'+hm(Date.now()-s.start)+'</span><button class="btn sm" data-act="adminClose" data-arg="'+id+'">Закрыть</button></div>';
+  open.forEach(({id,s,forgot,maxH})=>{const w=S.workers[s.workerId]||{};const ob=openBreak(s);const site=siteOf(s);
+    h+='<div class="list-item"><div class="grow"><div><b>'+esc(w.name||'?')+'</b> <span class="muted small">'+esc(w.code||'')+'</span>'+(forgot?' <span class="pill stop">больше '+maxH+' ч</span>':'')+(ob?' <span class="pill warn">перерыв</span>':'')+'</div>'+
+    '<div class="muted small">'+esc(companyName(s.companyId||w.companyId))+(site?' · '+esc(site.name):'')+' · с '+fmtDT(s.start)+'</div><div class="small">'+geoPills(s)+'</div></div>'+
+    '<span class="tnum" data-work="'+id+'">'+hm(shiftWork(s).ms)+'</span>'+(forgot?'<button class="btn sm" data-act="shiftEdit" data-arg="'+id+'">Указать конец</button>':'<button class="btn sm" data-act="adminClose" data-arg="'+id+'">Закрыть</button>')+'</div>';
   });
   h+='</section>';
   const n=pending().length;
   if(n)h+='<section class="card"><div class="row between"><p><b>'+n+'</b> '+plural(n,'запрос ждёт','запроса ждут','запросов ждут')+' вашего решения</p><button class="btn sm primary" data-act="tab" data-arg="requests">Открыть</button></div></section>';
   return h;
 }
-
+function periodBar(){
+  const p=S.period;
+  let h='<div class="seg" role="group">'+[['month','Месяц'],['week','Неделя'],['custom','Период']].map(([k,l])=>'<button class="'+(p.mode===k?'on':'')+'" data-act="pmode" data-arg="'+k+'">'+l+'</button>').join('')+'</div>';
+  if(p.mode==='custom'){
+    h+='<form data-form="prange" class="row" style="align-items:flex-end">'+fld('pfrom','С','<input id="pfrom" name="from" type="date" value="'+p.from+'">')+fld('pto','По','<input id="pto" name="to" type="date" value="'+p.to+'">')+'<button class="btn" type="submit">Показать</button></form><p class="muted small">Не больше 3 месяцев.</p>';
+  }else{
+    const locked=p.mode==='month'&&scopedCompanies().length&&(S.repCompany==='all'?scopedCompanies().every(([id])=>isLocked(id,p.month)):isLocked(S.repCompany,p.month));
+    h+='<div class="monthnav"><button class="btn sm" data-act="pshift" data-arg="-1" aria-label="Назад">←</button><strong>'+periodLabel()+(locked?' 🔒':'')+'</strong><button class="btn sm" data-act="pshift" data-arg="1" aria-label="Вперёд">→</button></div>';
+  }
+  return h;
+}
 function reportRows(){
   if(S.repCompany!=='all'&&!inScope(S.repCompany))S.repCompany='all';
-  return sortedWorkers().filter(([,w])=>!isPendingReg(w)&&inScope(w.companyId)&&(S.repCompany==='all'||w.companyId===S.repCompany)).map(([id,w])=>({id,w,m:calcMonth(id,S.month)}));
+  const [a,b]=periodRange();
+  return sortedWorkers().filter(([,w])=>!isPendingReg(w)&&inScope(w.companyId)&&(S.repCompany==='all'||w.companyId===S.repCompany)).map(([id,w])=>({id,w,m:calc(id,a,b)})).filter(({w,m})=>w.companyId||m.days.length||m.adj.length);
 }
 function adminReport(){
   if(S.repWorker&&S.workers[S.repWorker]&&wScope(S.repWorker))return adminWorkerDetail(S.repWorker);
-  const rows=reportRows();
-  const pcts=[...new Set(rows.flatMap(r=>Object.keys(r.m.buckets).map(Number)))].sort((a,b)=>a-b);
-  if(!pcts.includes(100))pcts.unshift(100);
-  let h=monthNav()+'<div class="row"><div class="field" style="flex:1;min-width:180px"><label for="repc">Компания</label><select id="repc" data-change="repCompany"><option value="all">'+(adm().all?'Все компании':'Все мои компании')+'</option>'+
+  const a=adm();const rows=reportRows();
+  const pcts=[...new Set(rows.flatMap(r=>Object.keys(r.m.buckets).map(Number)))].sort((x,y)=>x-y);if(!pcts.includes(100))pcts.unshift(100);
+  const anyTravel=rows.some(r=>r.m.travel),anyAdj=rows.some(r=>r.m.plus||r.m.minus);
+  let h=periodBar()+'<div class="row"><div class="field" style="flex:1;min-width:180px"><label for="repc">Компания</label><select id="repc" data-change="repCompany"><option value="all">'+(a.all?'Все компании':'Все мои компании')+'</option>'+
   scopedCompanies().map(([id,c])=>'<option value="'+id+'"'+(S.repCompany===id?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></div>'+
   '<button class="btn" data-act="export" style="align-self:flex-end">Скачать для Excel</button></div>';
-  const tot={H:0,pay:0,b:{}};
-  h+='<section class="card"><h2>Часы и зарплата</h2><p class="muted small">Нажмите на работника, чтобы увидеть и исправить его смены.</p><div class="tablewrap"><table><thead><tr><th>Работник</th><th>Часы</th>'+pcts.map(p=>'<th>'+p+'%</th>').join('')+'<th>Сумма</th></tr></thead><tbody>';
-  if(!rows.length)h+='<tr><td colspan="'+(pcts.length+3)+'" class="empty">Нет работников</td></tr>';
+  if(S.period.mode==='month'&&a.all&&scopedCompanies().length){
+    const ids=S.repCompany==='all'?scopedCompanies().map(([id])=>id):[S.repCompany];const allLocked=ids.every(id=>isLocked(id,S.period.month));
+    h+='<div class="row"><button class="btn sm'+(allLocked?'':' danger')+'" data-act="lockMonth" data-arg="'+(allLocked?'unlock':'lock')+'">'+(allLocked?'🔓 Открыть месяц для правок':'🔒 Закрыть месяц')+'</button><span class="muted small">'+(allLocked?'Месяц закрыт: смены и доплаты не меняются.':'После выплаты закройте месяц, чтобы ничего не поменялось задним числом.')+'</span></div>';
+  }
+  const tot={H:0,pay:0,travel:0,adj:0,total:0,b:{}};
+  h+='<section class="card"><h2>Часы и зарплата</h2><p class="muted small">Нажмите на работника, чтобы увидеть смены, доплаты и историю правок.</p><div class="tablewrap"><table><thead><tr><th>Работник</th><th>Часы</th>'+pcts.map(p=>'<th>'+p+'%</th>').join('')+'<th>За часы</th>'+(anyTravel?'<th>Проезд</th>':'')+(anyAdj?'<th>Доплаты / вычеты</th>':'')+'<th>К выплате</th></tr></thead><tbody>';
+  if(!rows.length)h+='<tr><td colspan="'+(pcts.length+5)+'" class="empty">Нет работников</td></tr>';
   rows.forEach(({id,w,m})=>{
-    tot.H+=m.totalH;tot.pay+=m.pay;pcts.forEach(p=>{tot.b[p]=(tot.b[p]||0)+(m.buckets[p]||0);});
+    tot.H+=m.totalH;tot.pay+=m.pay;tot.travel+=m.travel;tot.adj+=m.plus-m.minus;tot.total+=m.total;pcts.forEach(p=>{tot.b[p]=(tot.b[p]||0)+(m.buckets[p]||0);});
     h+='<tr data-act="repWorker" data-arg="'+id+'"><td><b>'+esc(w.name)+'</b><br><span class="muted small">'+esc(w.code)+(S.repCompany==='all'?' · '+esc(companyName(w.companyId)):'')+'</span></td><td>'+hmH(m.totalH)+'</td>'+
-    pcts.map(p=>'<td>'+(m.buckets[p]?hmH(m.buckets[p]):'<span class="muted">—</span>')+'</td>').join('')+'<td><b>'+(m.rate?money(m.pay):'<span class="muted">нет ставки</span>')+'</b></td></tr>';
+    pcts.map(p=>'<td>'+(m.buckets[p]?hmH(m.buckets[p]):'<span class="muted">—</span>')+'</td>').join('')+
+    '<td>'+(m.rate?money(m.pay):'<span class="muted">нет ставки</span>')+'</td>'+(anyTravel?'<td>'+(m.travel?money(m.travel):'<span class="muted">—</span>')+'</td>':'')+(anyAdj?'<td>'+((m.plus||m.minus)?money(m.plus-m.minus):'<span class="muted">—</span>')+'</td>':'')+'<td><b>'+(m.rate||m.plus||m.minus?money(m.total):'—')+'</b></td></tr>';
   });
-  h+='</tbody>'+(rows.length>1?'<tfoot><tr><td>Итого</td><td>'+hmH(tot.H)+'</td>'+pcts.map(p=>'<td>'+(tot.b[p]?hmH(tot.b[p]):'—')+'</td>').join('')+'<td>'+money(tot.pay)+'</td></tr></tfoot>':'')+'</table></div></section>';
+  h+='</tbody>'+(rows.length>1?'<tfoot><tr><td>Итого</td><td>'+hmH(tot.H)+'</td>'+pcts.map(p=>'<td>'+(tot.b[p]?hmH(tot.b[p]):'—')+'</td>').join('')+'<td>'+money(tot.pay)+'</td>'+(anyTravel?'<td>'+money(tot.travel)+'</td>':'')+(anyAdj?'<td>'+money(tot.adj)+'</td>':'')+'<td>'+money(tot.total)+'</td></tr></tfoot>':'')+'</table></div></section>';
   return h;
 }
+function auditLine(x){
+  const acts={edit:'изменил(а) смену',add:'добавил(а) смену',delete:'удалил(а) смену',close:'закрыл(а) смену',approve:'одобрил(а) запрос',breaks:'изменил(а) перерыв'};
+  const f=v=>v?clock(v.start)+'–'+(v.end?clock(v.end):'…')+(v.breakMin?' (перерыв '+v.breakMin+' мин)':''):'—';
+  return '<div class="list-item" style="align-items:flex-start"><div class="grow"><div class="small"><b>'+esc(x.byName||'?')+'</b> '+(acts[x.action]||x.action)+' за '+fmtShort(x.day||dayKey(x.at))+'</div><div class="small tnum">'+(x.before?'<span class="muted">'+f(x.before)+'</span> → ':'')+f(x.after)+'</div></div><span class="muted small tnum">'+fmtDT(x.at)+'</span></div>';
+}
 function adminWorkerDetail(wid){
-  const w=S.workers[wid],m=calcMonth(wid,S.month);
-  let h='<div class="row"><button class="btn sm" data-act="repBack">← Все работники</button></div>'+monthNav();
-  h+='<section class="card"><div class="row between"><div><h2>'+esc(w.name)+rolePill(w)+'</h2><p class="muted small">'+esc(companyName(w.companyId))+' · ID '+esc(w.code)+' · '+(w.rate?esc(w.rate)+' ₪/час':'ставка не указана')+'</p></div><button class="btn sm primary" data-act="shiftAdd" data-arg="'+wid+'">Добавить смену</button></div>'+
-  '<div class="row">'+(canEditPerson(w)?'<button class="btn sm" data-act="workerForm" data-arg="'+wid+'">Данные и пароль</button>':'')+'<button class="btn sm ghost" data-act="actAs" data-arg="'+wid+'">Открыть как работник</button>'+
-  (adm().owner&&rightsOf(w)?'<button class="btn sm ghost" data-act="actAsAdmin" data-arg="'+wid+'">Открыть как '+(roleOf(w)==='super'?'главный админ':'старший')+'</button>':'')+'</div>'+
-  '<div class="tiles"><div class="tile"><span>Часы</span><b>'+hmH(m.totalH)+'</b></div><div class="tile"><span>Сверхурочно</span><b>'+hmH(m.otH)+'</b></div><div class="tile"><span>Сумма</span><b>'+(m.rate?money(m.pay):'—')+'</b></div></div>'+
+  const w=S.workers[wid],[pa,pb]=periodRange(),m=calc(wid,pa,pb);const a=adm();
+  const lockedAny=monthsBetween(pa,pb).some(mm=>isLocked(w.companyId,mm));
+  let h='<div class="row"><button class="btn sm" data-act="repBack">← Все работники</button></div>'+periodBar();
+  h+='<section class="card"><div class="row between"><div><h2>'+esc(w.name)+rolePill(w)+'</h2><p class="muted small">'+esc(companyName(w.companyId))+' · ID '+esc(w.code)+' · '+(w.rate?esc(w.rate)+' ₪/час':'ставка не указана')+(w.travel?' · проезд '+esc(w.travel)+' ₪/день':'')+'</p></div>'+(lockedAny?'<span class="pill grey">🔒 месяц закрыт</span>':'<button class="btn sm primary" data-act="shiftAdd" data-arg="'+wid+'">Добавить смену</button>')+'</div>'+
+  '<div class="row">'+(canEditPerson(w)?'<button class="btn sm" data-act="workerForm" data-arg="'+wid+'">Данные и пароль</button>':'')+(lockedAny?'':'<button class="btn sm" data-act="adjAdd" data-arg="'+wid+'">+ Доплата / вычет</button>')+'<button class="btn sm ghost" data-act="actAs" data-arg="'+wid+'">Открыть как работник</button>'+
+  (a.owner&&rightsOf(w)?'<button class="btn sm ghost" data-act="actAsAdmin" data-arg="'+wid+'">Открыть как '+(roleOf(w)==='super'?'главный админ':'старший')+'</button>':'')+'</div>'+
+  '<div class="tiles"><div class="tile"><span>Часы</span><b>'+hmH(m.totalH)+'</b></div><div class="tile"><span>Сверхурочно</span><b>'+hmH(m.otH)+'</b></div><div class="tile"><span>К выплате</span><b>'+(m.rate||m.plus||m.minus?money(m.total):'—')+'</b></div></div>'+
+  '<div class="paylines small"><span>За часы: <b>'+money(m.pay)+'</b></span>'+(m.travel?'<span>Проезд ('+m.travelDays+' дн.): <b>'+money(m.travel)+'</b></span>':'')+(m.plus?'<span>Доплаты: <b>+'+money(m.plus)+'</b></span>':'')+(m.minus?'<span>Вычеты: <b>−'+money(m.minus)+'</b></span>':'')+'</div>'+
   (Object.keys(m.buckets).length?'<div class="row">'+bucketPills(m.buckets)+'</div>':'')+'</section>';
+  if(m.adj.length){
+    h+='<section class="card"><h2>Доплаты и вычеты</h2>'+m.adj.map(x=>{const lk=isLocked(x.companyId,x.month);return '<div class="list-item"><div class="grow"><div>'+t((ADJ_KINDS[x.kind]||{}).key||'kBonus')+(x.note?' · '+esc(x.note):'')+'</div><div class="muted small">'+fmtDay(x.date)+'</div></div><b class="tnum">'+(x.amount>=0?'+':'')+money(x.amount)+'</b>'+(lk?'':'<button class="btn sm ghost danger" data-act="adjDel" data-arg="'+x.id+'" aria-label="Удалить">✕</button>')+'</div>';}).join('')+'</section>';
+  }
   h+='<section class="card"><h2>Смены</h2>';
-  if(!m.days.length)h+='<p class="empty">В этом месяце смен нет.</p>';
+  if(!m.days.length)h+='<p class="empty">За этот период смен нет.</p>';
   m.days.forEach(d=>{
-    h+='<div class="day"><div class="row between"><h3>'+fmtDay(d.key)+(d.dayRate>100?' <span class="pill warn">'+d.dayRate+'%</span>':'')+'</h3><span class="tnum"><b>'+hmH(d.H)+'</b>'+(m.rate?' · '+money(d.pay):'')+'</span></div>';
-    d.shifts.forEach(s=>{h+='<div class="shift"><span class="t">'+clock(s.start)+' – '+(s.end?clock(s.end):'идёт')+(s.end?' <span class="muted">('+hm(s.end-s.start)+')</span>':'')+(s.editedAt?' <span class="pill grey">исправлено</span>':'')+'</span><button class="btn sm" data-act="shiftEdit" data-arg="'+s.id+'">Изменить</button></div>';});
+    h+='<div class="day"><div class="row between"><h3>'+fmtDay(d.key)+(d.hol?' <span class="pill warn">'+esc(d.hol.name||'праздник')+'</span>':'')+(d.dayRate>100?' <span class="pill warn">'+d.dayRate+'%</span>':'')+'</h3><span class="tnum"><b>'+hmH(d.H)+'</b>'+(m.rate?' · '+money(d.pay):'')+'</span></div>';
+    d.shifts.forEach(s=>{const x=shiftWork(s);const site=siteOf(s);const lk=shiftLocked(s);
+      h+='<div class="shift" style="align-items:flex-start"><div class="t"><div>'+clock(s.start)+' – '+(s.end?clock(s.end):'идёт')+(s.end?' <span class="muted">('+hm(x.ms)+')</span>':'')+(x.br>=60000?' <span class="muted small">· перерыв '+Math.round(x.br/60000)+' мин</span>':'')+(s.editedAt?' <span class="pill grey">исправлено</span>':'')+'</div>'+
+      '<div class="small">'+(site?'<span class="muted">'+esc(site.name)+'</span>':'')+geoPills(s)+'</div></div>'+(lk?'':'<button class="btn sm" data-act="shiftEdit" data-arg="'+s.id+'">Изменить</button>')+'</div>';});
     h+='</div>';
   });
-  return h+'</section>';
+  h+='</section>';
+  const hist=Object.values(S.audit).filter(x=>x.workerId===wid&&(x.day||dayKey(x.at))>=pa&&(x.day||dayKey(x.at))<=pb).sort((x,y)=>y.at-x.at);
+  h+='<section class="card"><h2>История изменений</h2>'+(hist.length?hist.slice(0,40).map(auditLine).join(''):'<p class="empty">Правок за этот период не было.</p>')+'</section>';
+  return h;
 }
-
 function adminRequests(){
   const all=Object.entries(S.requests).filter(([,r])=>wScope(r.workerId)).sort((a,b)=>b[1].createdAt-a[1].createdAt);
   const pend=all.filter(([,r])=>r.status==='pending'),done=all.filter(([,r])=>r.status!=='pending').slice(0,20);
-  const item=([id,r],act)=>{const w=S.workers[r.workerId]||{};const old=r.shiftId&&S.shifts[r.shiftId];
+  const item=([id,r],act)=>{const w=S.workers[r.workerId]||{};
     return '<div class="list-item" style="align-items:flex-start"><div class="grow"><div><b>'+esc(w.name||'?')+'</b> <span class="muted small">'+esc(w.code||'')+' · '+esc(companyName(w.companyId))+'</span></div>'+
     '<div class="small">'+(r.type==='add'?'Просит добавить смену':'Просит исправить смену')+'</div>'+
     (r.type==='edit'&&r.oldStart?'<div class="small muted tnum">Было: '+fmtDT(r.oldStart)+' – '+(r.oldEnd?clock(r.oldEnd):'…')+'</div>':'')+
@@ -439,7 +609,6 @@ function adminRequests(){
   if(done.length)h+='<section class="card"><h2>История</h2>'+done.map(x=>item(x,false)).join('')+'</section>';
   return h;
 }
-
 function adminWorkers(){
   let h='<div class="row between"><p class="muted small">Работники регистрируются сами или вы добавляете их здесь.</p><button class="btn primary" data-act="workerForm">+ Работник</button></div>';
   const a=adm();const regs=pendingRegs().sort((x,y)=>String(x[1].code).localeCompare(String(y[1].code)));
@@ -459,204 +628,313 @@ function adminWorkers(){
   return h;
 }
 function workerRow([id,w]){
-  return '<div class="list-item"><div class="grow"><div><b class="tnum">'+esc(w.code)+'</b> · '+esc(w.name)+rolePill(w)+(w.active===false?' <span class="pill stop">не работает</span>':'')+'</div><div class="muted small tnum">'+[w.phone,w.email,w.rate?w.rate+' ₪/час':'без ставки'].filter(Boolean).map(esc).join(' · ')+'</div></div>'+
+  return '<div class="list-item"><div class="grow"><div><b class="tnum">'+esc(w.code)+'</b> · '+esc(w.name)+rolePill(w)+(w.active===false?' <span class="pill stop">не работает</span>':'')+(w.status==='rejected'?' <span class="pill stop">отклонён</span>':'')+'</div><div class="muted small tnum">'+[w.phone,w.email,w.rate?w.rate+' ₪/час':'без ставки',w.travel?'проезд '+w.travel+' ₪':''].filter(Boolean).map(esc).join(' · ')+'</div></div>'+
   '<button class="btn sm primary" data-act="openTable" data-arg="'+id+'">Табель</button>'+(canEditPerson(w)?'<button class="btn sm" data-act="workerForm" data-arg="'+id+'">Изменить</button>':'')+'</div>';
 }
-function canEditPerson(w){const a=adm();return !!a&&(a.roles||(roleOf(w)==='worker'&&inScope(w.companyId)));}
-
+function holidaysCard(){
+  const all=Object.entries(S.holidays).sort((a,b)=>a[0]<b[0]?-1:1);
+  const upcoming=all.filter(([k])=>k>=addDays(today,-7));
+  const list=S.showAllHol?all:upcoming.slice(0,10);
+  return '<section class="card"><div class="row between"><h2>Праздники</h2><span class="pill grey">'+all.length+'</span></div>'+
+  '<p class="muted small">В праздник работа оплачивается по ставке праздника (обычно 150%), в канун — по ставке кануна (обычно 125%). Ставки задаются в каждой компании.</p>'+
+  '<div class="row"><button class="btn sm primary" data-act="holLoad">Загрузить праздники Израиля</button><button class="btn sm" data-act="holAdd">+ Добавить день</button></div>'+
+  (list.length?list.map(([k,v])=>'<div class="list-item"><div class="grow"><div>'+fmtDay(k)+' · '+esc(v.name||'')+'</div><div class="muted small">'+(v.type==='eve'?'канун праздника':'праздник')+'</div></div><button class="btn sm ghost danger" data-act="holDel" data-arg="'+k+'" aria-label="Удалить">✕</button></div>').join(''):'<p class="empty">Праздники не добавлены.</p>')+
+  (all.length>list.length||S.showAllHol?'<button class="btn sm ghost" data-act="holAll">'+(S.showAllHol?'Только ближайшие':'Показать все ('+all.length+')')+'</button>':'')+'</section>';
+}
 function adminCompanies(){
   const a=adm();
-  let h='<div class="row between"><p class="muted small">У каждой компании свои правила переработок и доплат по дням.</p>'+(a.all?'<button class="btn primary" data-act="companyForm">+ Компания</button>':'')+'</div>';
+  let h='<div class="row between"><p class="muted small">У каждой компании свои правила переработок, доплат и объекты.</p>'+(a.all?'<button class="btn primary" data-act="companyForm">+ Компания</button>':'')+'</div>';
   const cs=scopedCompanies();
   if(!cs.length)h+='<p class="empty">Компаний пока нет.</p>';
   cs.forEach(([id,c])=>{const r=rulesOf(c);const n=Object.values(S.workers).filter(w=>w.companyId===id).length;
     const special=r.day.map((p,i)=>p!==100?WD[i]+' '+p+'%':null).filter(Boolean).join(', ');
-    const mg=managersOf(id).map(w=>esc(w.name)).join(', ');
-    h+='<section class="card"><div class="row between"><h2>'+esc(c.name)+'</h2>'+(a.all?'<button class="btn sm" data-act="companyForm" data-arg="'+id+'">Изменить</button>':'')+'</div>'+
+    const mg=managersOf(id).map(w=>esc(w.name)).join(', ');const sites=c.sites||[];
+    h+='<section class="card"><div class="row between"><h2>'+esc(c.name)+'</h2>'+(a.all?'<div class="row"><button class="btn sm" data-act="sitesForm" data-arg="'+id+'">Объекты</button><button class="btn sm" data-act="companyForm" data-arg="'+id+'">Изменить</button></div>':'')+'</div>'+
     '<p class="small"><b>Старшие:</b> '+(mg||'<span class="muted">не назначены</span>')+'</p>'+
+    '<p class="small"><b>Объекты:</b> '+(sites.length?sites.map(s=>esc(s.name)+(isFinite(s.lat)?' 📍':'')).join(', '):'<span class="muted">не добавлены</span>')+'</p>'+
     '<p class="small">Норма '+r.norm+' ч в день, дальше '+r.ot1Hours+' ч по '+r.ot1+'%, потом '+r.ot2+'%.</p>'+
-    '<p class="small">'+(special?'Доплата по дням: '+special+'.':'Все дни по 100%.')+(r.breakMin?' Перерыв '+r.breakMin+' мин вычитается из смен длиннее 6 ч.':'')+'</p>'+
-    '<p class="muted small">'+n+' '+plural(n,'работник','работника','работников')+'</p></section>';
+    '<p class="small">'+(special?'Доплата по дням: '+special+'.':'Все дни по 100%.')+' Праздник '+r.holiday+'%, канун '+r.eve+'%.'+(r.breakMin?' Перерыв '+r.breakMin+' мин вычитается из смен длиннее 6 ч, если работник не отмечал перерыв.':'')+'</p>'+
+    '<p class="muted small">'+n+' '+plural(n,'работник','работника','работников')+' · смена считается забытой после '+r.maxShiftH+' ч</p></section>';
   });
+  if(a.all)h+=holidaysCard();
   return h;
 }
 
 /* ---------- modals ---------- */
 function openModal(html){$modal.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';$modal.hidden=false;const f=$modal.querySelector('input,select,textarea');if(f&&window.innerWidth>600)f.focus();}
 function closeModal(){$modal.hidden=true;$modal.innerHTML='';}
-const fld=(id,label,input)=>'<div class="field"><label for="'+id+'">'+label+'</label>'+input+'</div>';
+const formWrap=(name,attrs,inner)=>'<form data-form="'+name+'" '+(attrs||'')+' style="display:flex;flex-direction:column;gap:12px">'+inner+'</form>';
+const btnRow=(ok,extra)=>'<div class="row"><button class="btn primary" type="submit">'+ok+'</button><button class="btn" type="button" data-act="closeModal">'+(S.view==='admin'?'Отмена':t('cancel'))+'</button>'+(extra||'')+'</div>';
 
 function companyModal(id){
   const c=id?S.companies[id]:{name:''};const r=rulesOf(c);
-  openModal('<form data-form="company" data-id="'+(id||'')+'" style="display:flex;flex-direction:column;gap:12px"><h2>'+(id?'Компания':'Новая компания')+'</h2>'+
+  openModal(formWrap('company','data-id="'+(id||'')+'"','<h2>'+(id?'Компания':'Новая компания')+'</h2>'+
   fld('cname','Название','<input id="cname" name="name" required value="'+esc(c.name)+'">')+
-  '<div class="grid2">'+fld('cnorm','Обычных часов в день','<input id="cnorm" name="norm" type="number" step="0.1" min="0" value="'+r.norm+'">')+fld('cbreak','Перерыв, мин (из смен > 6 ч)','<input id="cbreak" name="breakMin" type="number" min="0" value="'+r.breakMin+'">')+'</div>'+
+  '<div class="grid2">'+fld('cnorm','Обычных часов в день','<input id="cnorm" name="norm" type="number" step="0.1" min="0" value="'+r.norm+'">')+fld('cbreak','Авто-перерыв, мин (смены > 6 ч)','<input id="cbreak" name="breakMin" type="number" min="0" value="'+r.breakMin+'">')+'</div>'+
   '<div class="grid2">'+fld('cot1h','Первые часы переработки','<input id="cot1h" name="ot1Hours" type="number" step="0.5" min="0" value="'+r.ot1Hours+'">')+fld('cot1','…оплата, %','<input id="cot1" name="ot1" type="number" min="100" value="'+r.ot1+'">')+'</div>'+
-  fld('cot2','Дальше переработка, %','<input id="cot2" name="ot2" type="number" min="100" value="'+r.ot2+'">')+
+  '<div class="grid2">'+fld('cot2','Дальше переработка, %','<input id="cot2" name="ot2" type="number" min="100" value="'+r.ot2+'">')+fld('cmax','Смена «забыта» после, ч','<input id="cmax" name="maxShiftH" type="number" min="1" max="48" value="'+r.maxShiftH+'">')+'</div>'+
+  '<div class="grid2">'+fld('chol','Праздник, %','<input id="chol" name="holiday" type="number" min="100" value="'+r.holiday+'">')+fld('ceve','Канун праздника, %','<input id="ceve" name="eve" type="number" min="100" value="'+r.eve+'">')+'</div>'+
   '<div class="field"><label>Оплата по дням недели, %</label><div class="grid7">'+WD.map((d,i)=>'<div class="field" style="gap:2px"><label for="cd'+i+'" style="text-align:center">'+d+'</label><input id="cd'+i+'" name="d'+i+'" type="number" min="0" value="'+r.day[i]+'"></div>').join('')+'</div>'+
-  '<p class="muted small">Если день и переработка дают разный процент, берётся больший.</p></div>'+
-  '<div class="row"><button class="btn primary" type="submit">Сохранить</button><button class="btn" type="button" data-act="closeModal">Отмена</button>'+
-  (id?'<div class="sp" style="flex:1"></div><button class="btn danger" type="button" data-act="companyDelete" data-arg="'+id+'">Удалить</button>':'')+'</div></form>');
+  '<p class="muted small">Если день, праздник и переработка дают разный процент, берётся больший.</p></div>'+
+  btnRow('Сохранить',id?'<div style="flex:1"></div><button class="btn danger" type="button" data-act="companyDelete" data-arg="'+id+'">Удалить</button>':'')));
+}
+let siteDraft=null;
+function sitesModal(cid){
+  if(cid){siteDraft={cid,sites:JSON.parse(JSON.stringify((S.companies[cid]||{}).sites||[]))};}
+  const d=siteDraft;
+  openModal(formWrap('sites','','<h2>Объекты · '+esc(companyName(d.cid))+'</h2><p class="muted small">Работник выбирает объект при начале смены. Если задать место, вы увидите, отметился ли он рядом с объектом. Чтобы задать место, нажмите 📍, находясь на объекте.</p>'+
+  (d.sites.length?d.sites.map((s,i)=>'<div class="card" style="padding:12px;gap:8px">'+
+    fld('sn'+i,'Название','<input id="sn'+i+'" data-site="'+i+'" data-k="name" value="'+esc(s.name)+'" required>')+
+    '<div class="row" style="align-items:flex-end">'+fld('sr'+i,'Радиус, м','<input id="sr'+i+'" data-site="'+i+'" data-k="radius" type="number" min="20" value="'+esc(s.radius||200)+'" style="width:110px">')+
+    '<button class="btn sm" type="button" data-act="siteHere" data-arg="'+i+'">📍 '+(isFinite(s.lat)?'Обновить место':'Задать место здесь')+'</button>'+
+    '<button class="btn sm danger" type="button" data-act="siteDel" data-arg="'+i+'">Удалить</button></div>'+
+    (isFinite(s.lat)?'<a class="small" href="'+mapUrl(s)+'" target="_blank" rel="noopener">Место задано · открыть на карте</a>':'<span class="muted small">Место не задано</span>')+'</div>').join(''):'<p class="empty">Объектов пока нет.</p>')+
+  '<button class="btn" type="button" data-act="siteNew">+ Добавить объект</button>'+btnRow('Сохранить')));
+}
+function holModal(){
+  openModal(formWrap('hol','','<h2>Добавить день</h2>'+fld('hd','Дата','<input id="hd" name="date" type="date" required value="'+today+'">')+fld('hn','Название','<input id="hn" name="name" placeholder="Например: Песах">')+
+  fld('ht','Тип','<select id="ht" name="type"><option value="holiday">Праздник</option><option value="eve">Канун праздника</option></select>')+btnRow('Добавить')));
 }
 function workerModal(id){
-  const w=id?S.workers[id]:{code:'',name:'',phone:'',email:'',companyId:(S.repCompany!=='all'&&S.repCompany)||(scopedCompanies()[0]||[])[0]||'',rate:'',active:true};
+  const w=id?S.workers[id]:{code:'',name:'',phone:'',email:'',companyId:(S.repCompany!=='all'&&S.repCompany)||(scopedCompanies()[0]||[])[0]||'',rate:'',travel:'',active:true};
   if(!scopedCompanies().length){toast('Сначала добавьте компанию');return;}
   const a=adm();const role=roleOf(w);const man=Array.isArray(w.manages)?w.manages:[];
   const canReset=id&&w.authEmail&&!isPhoneEmail(w.authEmail);
   const roleBlock=!a.roles||id===S.uid?'':'<fieldset style="border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;margin:0"><legend style="font-weight:600;padding:0 4px">Права</legend>'+
     [['worker','Работник','отмечает своё время'],['manager','Старший','управляет выбранными компаниями'],['super','Главный админ','видит всё, как вы']].map(([v,l,d])=>'<label class="row" style="color:var(--ink);font-size:15px;gap:8px"><input type="radio" name="role" value="'+v+'" style="width:auto"'+(role===v?' checked':'')+' data-rolepick> <b>'+l+'</b> <span class="muted small">'+d+'</span></label>').join('')+
     '<div id="manBox" class="field"'+(role==='manager'?'':' hidden')+'><label>Компании старшего</label>'+sortedCompanies().map(([cid,c])=>'<label class="row" style="color:var(--ink);font-size:15px;gap:8px"><input type="checkbox" name="manages" value="'+cid+'" style="width:auto"'+(man.includes(cid)?' checked':'')+'> '+esc(c.name)+'</label>').join('')+'</div></fieldset>';
-  openModal('<form data-form="worker" data-id="'+(id||'')+'" style="display:flex;flex-direction:column;gap:12px"><h2>'+(id?'Работник':'Новый работник')+(id?' <span class="muted tnum" style="font-weight:400">ID '+esc(w.code)+'</span>':'')+'</h2>'+
+  openModal(formWrap('worker','data-id="'+(id||'')+'"','<h2>'+(id?'Работник':'Новый работник')+(id?' <span class="muted tnum" style="font-weight:400">ID '+esc(w.code)+'</span>':'')+'</h2>'+
   fld('wname','Имя и фамилия','<input id="wname" name="name" required value="'+esc(w.name)+'">')+
   '<div class="grid2">'+fld('wphone','Телефон','<input id="wphone" name="phone" type="tel" value="'+esc(w.phone)+'">')+fld('wemail','Email','<input id="wemail" name="email" type="email" autocapitalize="off" value="'+esc(w.email||'')+'"'+(id?' readonly':'')+'>')+'</div>'+
   (id?'':fld('wpin','Пароль для входа (минимум 6 символов)','<input id="wpin" name="pass" type="text" autocomplete="off" minlength="6" required>')+'<p class="muted small">ID присвоится автоматически. Сообщите работнику ID и пароль.</p>')+
-  (id?(canReset?'<div class="row"><button class="btn sm" type="button" data-act="sendReset" data-arg="'+id+'">Отправить письмо для смены пароля</button></div>':'<p class="muted small">Работник входит по телефону. Если он забудет пароль, восстановить его можно только через email, поэтому лучше попросить его указать email.</p>'):'')+
-  '<div class="grid2">'+fld('wcomp','Компания','<select id="wcomp" name="companyId">'+scopedCompanies().map(([cid,c])=>'<option value="'+cid+'"'+(cid===w.companyId?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select>')+
-  fld('wrate','Ставка, ₪ в час','<input id="wrate" name="rate" type="number" step="0.01" min="0" value="'+esc(w.rate)+'">')+'</div>'+
+  (id?(canReset?'<div class="row"><button class="btn sm" type="button" data-act="sendReset" data-arg="'+id+'">Отправить письмо для смены пароля</button></div>':'<p class="muted small">Работник входит по телефону. Восстановить забытый пароль можно только через email, поэтому лучше попросить его указать email.</p>'):'')+
+  fld('wcomp','Компания','<select id="wcomp" name="companyId">'+scopedCompanies().map(([cid,c])=>'<option value="'+cid+'"'+(cid===w.companyId?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select>')+
+  '<div class="grid2">'+fld('wrate','Ставка, ₪ в час','<input id="wrate" name="rate" type="number" step="0.01" min="0" value="'+esc(w.rate)+'">')+fld('wtravel','Проезд, ₪ за рабочий день','<input id="wtravel" name="travel" type="number" step="0.01" min="0" value="'+esc(w.travel||'')+'">')+'</div>'+
   roleBlock+'<label class="row" style="color:var(--ink);font-size:15px"><input type="checkbox" name="active" style="width:auto"'+(w.active!==false||isPendingReg(w)?' checked':'')+'> Работает сейчас'+(isPendingReg(w)?' (регистрация будет принята)':'')+'</label>'+
-  '<p class="err" id="werr"></p><div class="row"><button class="btn primary" type="submit">Сохранить</button><button class="btn" type="button" data-act="closeModal">Отмена</button></div></form>');
+  '<p class="err" id="werr"></p>'+btnRow('Сохранить')));
 }
 function regModal(){
   const cs=sortedCompanies();
-  openModal('<form data-form="register" style="display:flex;flex-direction:column;gap:12px"><h2>Регистрация</h2>'+
-  fld('gname','Имя и фамилия','<input id="gname" name="name" required autocomplete="name">')+
-  (cs.length?fld('gcomp','Компания','<select id="gcomp" name="companyId">'+cs.map(([cid,c])=>'<option value="'+cid+'">'+esc(c.name)+'</option>').join('')+'</select>'):'<p class="banner">Компаний пока нет. Сейчас может зарегистрироваться только администратор.</p>')+
-  fld('gphone','Телефон','<input id="gphone" name="phone" type="tel" autocomplete="tel">')+
-  fld('gemail','Email','<input id="gemail" name="email" type="email" autocapitalize="off" autocomplete="email">')+
-  '<p class="muted small">Нужен телефон или email. Лучше указать email: по нему можно восстановить пароль.</p>'+
-  '<div class="grid2">'+fld('gpass','Пароль (от 6 символов)','<input id="gpass" name="pass" type="password" required minlength="6" autocomplete="new-password">')+fld('gpass2','Ещё раз','<input id="gpass2" name="pass2" type="password" required minlength="6" autocomplete="new-password">')+'</div>'+
-  '<p class="err" id="gerr"></p><div class="row"><button class="btn primary" type="submit">Отправить</button><button class="btn" type="button" data-act="closeModal">Отмена</button></div></form>');
+  openModal(formWrap('register','','<h2>'+t('regTitle')+'</h2>'+
+  fld('gname',t('name'),'<input id="gname" name="name" required autocomplete="name">')+
+  (cs.length?fld('gcomp',t('company'),'<select id="gcomp" name="companyId">'+cs.map(([cid,c])=>'<option value="'+cid+'">'+esc(c.name)+'</option>').join('')+'</select>'):'<p class="banner">'+t('noCompanies')+'</p>')+
+  fld('gphone',t('phone'),'<input id="gphone" name="phone" type="tel" dir="ltr" autocomplete="tel">')+
+  fld('gemail',t('email'),'<input id="gemail" name="email" type="email" dir="ltr" autocapitalize="off" autocomplete="email">')+
+  '<p class="muted small">'+t('regHint')+'</p>'+
+  '<div class="grid2">'+fld('gpass',t('pass6'),'<input id="gpass" name="pass" type="password" dir="ltr" required minlength="6" autocomplete="new-password">')+fld('gpass2',t('again'),'<input id="gpass2" name="pass2" type="password" dir="ltr" required minlength="6" autocomplete="new-password">')+'</div>'+
+  '<p class="err" id="gerr"></p>'+btnRow(t('send'))));
 }
 function shiftModal(sid,wid){
-  const s=sid?S.shifts[sid]:null;wid=s?s.workerId:wid;const w=S.workers[wid]||{};
-  const now=Date.now();const st=s?s.start:new Date(new Date().setHours(8,0,0,0)).getTime();const en=s?s.end:new Date(new Date().setHours(17,0,0,0)).getTime();
-  openModal('<form data-form="shift" data-id="'+(sid||'')+'" data-worker="'+wid+'" style="display:flex;flex-direction:column;gap:12px"><h2>'+(sid?'Изменить смену':'Добавить смену')+'</h2><p class="muted">'+esc(w.name)+' · '+esc(w.code)+'</p>'+
+  const s=sid?S.shifts[sid]:null;wid=s?s.workerId:wid;const w=S.workers[wid]||{};const c=S.companies[s?s.companyId:w.companyId]||{};
+  const st=s?s.start:new Date(new Date().setHours(8,0,0,0)).getTime();const en=s?s.end:new Date(new Date().setHours(17,0,0,0)).getTime();
+  const brMin=s?Math.round(shiftWork(s,s.end||Date.now()).br/60000):0;const sites=c.sites||[];
+  openModal(formWrap('shift','data-id="'+(sid||'')+'" data-worker="'+wid+'"','<h2>'+(sid?'Изменить смену':'Добавить смену')+'</h2><p class="muted">'+esc(w.name)+' · '+esc(w.code)+'</p>'+
   fld('sstart','Начало','<input id="sstart" name="start" type="datetime-local" required value="'+toInput(st)+'">')+
   fld('send','Конец (пусто — смена ещё идёт)','<input id="send" name="end" type="datetime-local" value="'+(en?toInput(en):'')+'">')+
-  '<p class="err" id="serr"></p><div class="row"><button class="btn primary" type="submit">Сохранить</button><button class="btn" type="button" data-act="closeModal">Отмена</button>'+
-  (sid?'<div style="flex:1"></div><button class="btn danger" type="button" data-act="shiftDelete" data-arg="'+sid+'">Удалить</button>':'')+'</div></form>');
+  '<div class="grid2">'+fld('sbreak','Перерывы, мин','<input id="sbreak" name="breakMin" type="number" min="0" value="'+brMin+'">')+
+  (sites.length?fld('ssite','Объект','<select id="ssite" name="siteId"><option value="">—</option>'+sites.map(x=>'<option value="'+esc(x.id)+'"'+(s&&s.siteId===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'):'<span></span>')+'</div>'+
+  '<p class="muted small">Все изменения попадают в историю правок.</p><p class="err" id="serr"></p>'+
+  btnRow('Сохранить',sid?'<div style="flex:1"></div><button class="btn danger" type="button" data-act="shiftDelete" data-arg="'+sid+'">Удалить</button>':'')));
 }
 function requestModal(sid){
   const s=sid?S.shifts[sid]:null;
   const st=s?s.start:new Date(new Date().setHours(8,0,0,0)).getTime();const en=s&&s.end?s.end:new Date(new Date().setHours(17,0,0,0)).getTime();
-  openModal('<form data-form="request" data-id="'+(sid||'')+'" style="display:flex;flex-direction:column;gap:12px"><h2>'+(sid?'Исправить время':'Добавить смену')+'</h2>'+
-  '<p class="muted">Запрос уйдёт администратору. Время изменится после одобрения.</p>'+
-  fld('rstart','Начало','<input id="rstart" name="start" type="datetime-local" required value="'+toInput(st)+'">')+
-  fld('rend','Конец','<input id="rend" name="end" type="datetime-local" required value="'+toInput(en)+'">')+
-  fld('rcom','Комментарий','<textarea id="rcom" name="comment" rows="2" placeholder="Например: забыл нажать «Закончить»"></textarea>')+
-  '<p class="err" id="rerr"></p><div class="row"><button class="btn primary" type="submit">Отправить</button><button class="btn" type="button" data-act="closeModal">Отмена</button></div></form>');
+  openModal(formWrap('request','data-id="'+(sid||'')+'"','<h2>'+(sid?t('fixTime'):t('reqAddT'))+'</h2><p class="muted">'+t('reqText')+'</p>'+
+  fld('rstart',t('start'),'<input id="rstart" name="start" type="datetime-local" required value="'+toInput(st)+'">')+
+  fld('rend',t('end'),'<input id="rend" name="end" type="datetime-local" required value="'+toInput(en)+'">')+
+  fld('rcom',t('comment'),'<textarea id="rcom" name="comment" rows="2" placeholder="'+esc(t('commentPh'))+'"></textarea>')+
+  '<p class="err" id="rerr"></p>'+btnRow(t('send'))));
 }
-function confirmModal(text,okLabel,fn){
-  openModal('<h2>'+esc(text)+'</h2><div class="row"><button class="btn stop" data-act="confirmOk">'+esc(okLabel)+'</button><button class="btn" data-act="closeModal">Отмена</button></div>');
-  pendingConfirm=fn;
+function adjModal(wid){
+  const w=S.workers[wid]||{};const [pa,pb]=periodRange();const def=today>=pa&&today<=pb?today:pb;
+  openModal(formWrap('adj','data-worker="'+wid+'"','<h2>Доплата или вычет</h2><p class="muted">'+esc(w.name)+' · '+esc(w.code)+'</p>'+
+  fld('ak','Тип','<select id="ak" name="kind">'+Object.entries(ADJ_KINDS).map(([k,v])=>'<option value="'+k+'">'+T.ru[v.key]+(v.sign<0?' (вычитается)':' (прибавляется)')+'</option>').join('')+'</select>')+
+  '<div class="grid2">'+fld('aa','Сумма, ₪','<input id="aa" name="amount" type="number" step="0.01" min="0" required>')+fld('ad','Дата','<input id="ad" name="date" type="date" required value="'+def+'">')+'</div>'+
+  fld('an','Комментарий','<input id="an" name="note" placeholder="Например: премия за ноябрь">')+'<p class="err" id="aerr"></p>'+btnRow('Добавить')));
 }
-let pendingConfirm=null;
-function checkTimes(a,b){if(!isFinite(a))return 'Укажите начало';if(!isFinite(b))return 'Укажите конец';if(b<=a)return 'Конец должен быть позже начала';if(b-a>24*3600000)return 'Смена длиннее 24 часов, проверьте даты';return '';}
+function sitePickModal(loc){
+  const w=S.workers[S.me]||{};const c=S.companies[w.companyId]||{};const sites=(c.sites||[]).map(s=>({s,d:loc&&isFinite(s.lat)?distM(loc,s):null}));
+  let best=null;sites.forEach(x=>{if(x.d!=null&&(best==null||x.d<best.d))best=x;});
+  pendingLoc=loc;
+  openModal('<h2>'+t('whereToday')+'</h2>'+sites.sort((a,b)=>(a.d==null)-(b.d==null)||(a.d||0)-(b.d||0)).map(x=>'<button class="btn big'+(best&&x.s.id===best.s.id?' primary':'')+'" data-act="pickSite" data-arg="'+esc(x.s.id)+'">'+esc(x.s.name)+(x.d!=null?' <span class="small" style="font-weight:400">· '+(best&&x.s.id===best.s.id&&x.d<1000?t('nearYou'):fmtDist(x.d))+'</span>':'')+'</button>').join('')+
+  '<button class="btn" data-act="pickSite" data-arg="">'+t('otherPlace')+'</button><button class="btn ghost" data-act="closeModal">'+t('cancel')+'</button>');
+}
+let pendingLoc=null,pendingConfirm=null;
+function confirmModal(text,okLabel,fn){openModal('<h2>'+esc(text)+'</h2><div class="row"><button class="btn stop" data-act="confirmOk">'+esc(okLabel)+'</button><button class="btn" data-act="closeModal">'+(S.view==='admin'?'Отмена':t('cancel'))+'</button></div>');pendingConfirm=fn;}
+function forgotModal(){
+  openModal(formWrap('forgot','','<h2>'+t('forgotTitle')+'</h2><p class="muted">'+t('forgotText')+'</p>'+
+  fld('femail',t('email'),'<input id="femail" name="email" type="email" dir="ltr" autocapitalize="off" required value="'+esc(S.login.id.includes('@')?S.login.id:'')+'">')+
+  '<p class="muted small">'+t('forgotPhone')+'</p>'+btnRow(t('send'))));
+}
+function checkTimes(a,b){if(!isFinite(a))return t('eStart');if(!isFinite(b))return t('eEnd');if(b<=a)return t('eOrder');if(b-a>24*3600000)return t('eLong');return '';}
 
 /* ---------- export ---------- */
 function buildCsv(){
-  const rows=reportRows();
+  const rows=reportRows();const [pa,pb]=periodRange();
   const pcts=[...new Set(rows.flatMap(r=>Object.keys(r.m.buckets).map(Number)).concat([100]))].sort((a,b)=>a-b);
   const q=v=>{const s=String(v==null?'':v);return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
   const dec=h=>(Math.round(h*100)/100).toFixed(2);
   const out=[];
-  out.push(['Отчёт',monthLabel(S.month),S.repCompany==='all'?'Все компании':companyName(S.repCompany)]);
-  out.push([]);
-  out.push(['ID','Имя','Компания','Ставка ₪/ч','Часы всего'].concat(pcts.map(p=>'Часы '+p+'%')).concat(['Сверхурочно','Сумма ₪']));
-  rows.forEach(({w,m})=>out.push([w.code,w.name,companyName(w.companyId),w.rate||'',dec(m.totalH)].concat(pcts.map(p=>dec(m.buckets[p]||0))).concat([dec(m.otH),Math.round(m.pay)])));
-  out.push([]);
-  out.push(['Смены по дням']);
-  out.push(['ID','Имя','Дата','День','Начало','Конец','Часы','Сумма ₪']);
-  rows.forEach(({w,m})=>m.days.slice().reverse().forEach(d=>d.shifts.forEach((s,i)=>out.push([w.code,w.name,d.key,WD[new Date(s.start).getDay()],clock(s.start),s.end?clock(s.end):'идёт',i===0?dec(d.H):'',i===0?Math.round(d.pay):'']))));
+  out.push(['Отчёт',pa+' — '+pb,S.repCompany==='all'?'Все компании':companyName(S.repCompany)]);out.push([]);
+  out.push(['ID','Имя','Компания','Ставка ₪/ч','Часы всего'].concat(pcts.map(p=>'Часы '+p+'%')).concat(['Сверхурочно','За часы ₪','Рабочих дней','Проезд ₪','Доплаты ₪','Вычеты ₪','К выплате ₪']));
+  rows.forEach(({w,m})=>out.push([w.code,w.name,companyName(w.companyId),w.rate||'',dec(m.totalH)].concat(pcts.map(p=>dec(m.buckets[p]||0))).concat([dec(m.otH),Math.round(m.pay),m.travelDays,Math.round(m.travel),Math.round(m.plus),Math.round(m.minus),Math.round(m.total)])));
+  out.push([]);out.push(['Смены по дням']);
+  out.push(['ID','Имя','Дата','День','Праздник','Объект','Начало','Конец','Перерыв, мин','Часы за день','Сумма за день ₪','Место начала','Место конца']);
+  rows.forEach(({w,m})=>m.days.slice().reverse().forEach(d=>d.shifts.forEach((s,i)=>{const site=siteOf(s);const x=shiftWork(s);
+    const g=k=>{const l=s[k+'Loc'];if(!l)return '';if(site&&isFinite(site.lat)){const dd=distM(l,site);return dd<=(Number(site.radius)||200)+Math.min(l.acc||0,300)?'на объекте':'далеко '+fmtDist(dd);}return l.lat+','+l.lng;};
+    out.push([w.code,w.name,d.key,WD[parseDay(d.key).getDay()],d.hol?(d.hol.name||'праздник'):'',site?site.name:'',clock(s.start),s.end?clock(s.end):'идёт',Math.round(x.br/60000),i===0?dec(d.H):'',i===0?Math.round(d.pay):'',g('start'),g('end')]);})));
+  const adjRows=rows.flatMap(({w,m})=>m.adj.map(a=>[w.code,w.name,a.date,T.ru[(ADJ_KINDS[a.kind]||{}).key||'kBonus'],a.amount,a.note||'']));
+  if(adjRows.length){out.push([]);out.push(['Доплаты и вычеты']);out.push(['ID','Имя','Дата','Тип','Сумма ₪','Комментарий']);adjRows.forEach(r=>out.push(r));}
   return '﻿'+out.map(r=>r.map(q).join(',')).join('\r\n');
 }
-async function doExport(){
-  const csv=buildCsv();const name='tabel-'+S.month+(S.repCompany!=='all'?'-'+companyName(S.repCompany).replace(/[^\wа-яА-ЯёЁ-]+/g,'_'):'')+'.csv';
-  try{const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);return;}catch(e){}
-  openModal('<h2>Данные для Excel</h2><p class="muted small">Скопируйте и вставьте в Excel или Google Таблицы.</p><textarea id="csvbox" rows="10" readonly>'+esc(csv.replace('﻿','').replace(/,/g,'\t'))+'</textarea><div class="row"><button class="btn primary" data-act="copyCsv">Копировать</button><button class="btn" data-act="closeModal">Закрыть</button></div>');
+function doExport(){
+  const csv=buildCsv();const [pa,pb]=periodRange();const name='tabel-'+pa+'_'+pb+(S.repCompany!=='all'?'-'+companyName(S.repCompany).replace(/[^\wа-яА-ЯёЁ-]+/g,'_'):'')+'.csv';
+  try{const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}catch(e){toast('Не удалось скачать файл');}
 }
 
 /* ---------- actions ---------- */
+async function doClockIn(loc,siteId){
+  const w=S.workers[S.me];if(!w||openShiftOf(S.me))return;const now=Date.now();
+  const ok=await safe(()=>put('shifts',newId('shifts'),{workerId:S.me,companyId:w.companyId||'',start:now,end:null,month:monthKey(new Date(now)),createdAt:now,breaks:[],startLoc:loc||null,siteId:siteId||null}));
+  if(ok)toast(loc?t('tStarted'):t('tNoGeo'));
+}
+function approveLockedCheck(cid,ms){if(isLocked(cid,monthKey(new Date(ms)))){toast('Этот месяц закрыт. Сначала откройте его в отчёте.');return true;}return false;}
 const ACT={
-  goAdmin(){S.view='admin';S.tab='now';S.repWorker=null;S.month=monthKey(new Date());syncSubs();render();window.scrollTo(0,0);},
+  lang(l){LANG=l;store.set('tabel.lang',l);render();},
+  goAdmin(){S.view='admin';S.tab='now';S.repWorker=null;syncSubs();render();window.scrollTo(0,0);},
   backAdmin(){S.view='admin';S.asAdminPreview=false;S.me=S.uid;S.repCompany='all';syncSubs();render();},
   logout(){S.asAdminPreview=false;S.login={id:'',pin:''};B.signOut();},
   forgot(){forgotModal();},
   sendReset(id){const w=S.workers[id];if(!w||!w.authEmail)return;safe(()=>B.reset(w.authEmail),'Письмо отправлено на '+w.authEmail);},
   tab(a){S.tab=a;S.repWorker=null;render();window.scrollTo(0,0);},
   month(a){S.month=shiftMonth(S.month,Number(a));syncSubs();render();},
-  clockIn(){const w=S.workers[S.me];if(openShiftOf(S.me))return;const now=Date.now();safe(()=>put('shifts',newId('shifts'),{workerId:S.me,companyId:w.companyId,start:now,end:null,month:monthKey(new Date(now)),createdAt:now}),'Смена началась');},
-  clockOut(id){const s=S.shifts[id];if(!s)return;const now=Date.now();
-    if(now-s.start<60000){confirmModal('Смена длилась меньше минуты. Закончить?','Закончить',()=>safe(()=>patch('shifts',id,{end:Date.now()}),'Смена закончена'));return;}
-    safe(()=>patch('shifts',id,{end:now}),'Смена закончена: '+hm(now-s.start));},
-  adminClose(id){const s=S.shifts[id];const w=S.workers[s.workerId]||{};confirmModal('Закрыть смену '+(w.name||'')+' текущим временем?','Закрыть',()=>safe(()=>patch('shifts',id,{end:Date.now(),editedAt:Date.now()}),'Смена закрыта'));},
+  pmode(m){const p=S.period;const r=periodRange();const anchor=today>=r[0]&&today<=r[1]?today:r[0];p.mode=m;if(m==='month')p.month=anchor.slice(0,7);if(m==='week')p.week=weekStartOf(anchor);if(m==='custom'){p.from=r[0];p.to=r[1];}syncSubs();render();},
+  pshift(d){const p=S.period;d=Number(d);if(p.mode==='month')p.month=shiftMonth(p.month,d);else if(p.mode==='week')p.week=addDays(p.week,7*d);syncSubs();render();},
+  async clockIn(){
+    if(S.busyClock||openShiftOf(S.me))return;
+    const w=S.workers[S.me];const c=S.companies[w.companyId]||{};
+    S.busyClock=true;render();const loc=await getLoc();S.busyClock=false;render();
+    if((c.sites||[]).length){sitePickModal(loc);return;}
+    doClockIn(loc,null);
+  },
+  pickSite(id){const loc=pendingLoc;pendingLoc=null;closeModal();doClockIn(loc,id||null);},
+  async clockOut(id){
+    const s=S.shifts[id];if(!s||S.busyClock)return;
+    const go=async()=>{
+      S.busyClock=true;render();const loc=await getLoc();S.busyClock=false;
+      const now=Date.now();const data={end:now,endLoc:loc||null};
+      const br=Array.isArray(s.breaks)?s.breaks.map(b=>Object.assign({},b)):[];if(br.some(b=>!b.e)){br.forEach(b=>{if(!b.e)b.e=now;});data.breaks=br;}
+      const ok=await safe(()=>patch('shifts',id,data));render();
+      if(ok)toast(t('tEnded',{h:hm(shiftWork(Object.assign({},s,data)).ms)}));
+    };
+    if(Date.now()-s.start<60000){confirmModal(t('shortShift'),t('finish'),go);return;}
+    go();
+  },
+  breakStart(id){const s=S.shifts[id];if(!s)return;const br=(Array.isArray(s.breaks)?s.breaks:[]).map(b=>Object.assign({},b));br.push({s:Date.now(),e:null});safe(()=>patch('shifts',id,{breaks:br}),t('tBreak'));},
+  breakEnd(id){const s=S.shifts[id];if(!s)return;const now=Date.now();const br=(Array.isArray(s.breaks)?s.breaks:[]).map(b=>Object.assign({},b,b.e?{}:{e:now}));safe(()=>patch('shifts',id,{breaks:br}),t('tResume'));},
+  adminClose(id){const s=S.shifts[id];const w=S.workers[s.workerId]||{};confirmModal('Закрыть смену '+(w.name||'')+' текущим временем?','Закрыть',()=>safe(async()=>{const now=Date.now();const br=(Array.isArray(s.breaks)?s.breaks:[]).map(b=>Object.assign({},b,b.e?{}:{e:now}));await patch('shifts',id,{end:now,breaks:br,editedAt:now});await logAudit('close',s,id,snap(s),snap(Object.assign({},s,{end:now,breaks:br})));},'Смена закрыта'));},
   reqEdit(id){requestModal(id);},
   reqAdd(){requestModal(null);},
-  approve(id){const r=S.requests[id];if(!r)return;safe(async()=>{
-      if(r.type==='edit'&&r.shiftId&&S.shifts[r.shiftId])await patch('shifts',r.shiftId,{start:r.start,end:r.end,month:monthKey(new Date(r.start)),editedAt:Date.now()});
-      else await put('shifts',newId('shifts'),{workerId:r.workerId,companyId:r.companyId||(S.workers[r.workerId]||{}).companyId||'',start:r.start,end:r.end,month:monthKey(new Date(r.start)),createdAt:Date.now(),editedAt:Date.now()});
-      await patch('requests',id,{status:'approved',decidedAt:Date.now()});},'Одобрено, время обновлено');},
-  reject(id){safe(()=>patch('requests',id,{status:'rejected',decidedAt:Date.now()}),'Запрос отклонён');},
+  approve(id){const r=S.requests[id];if(!r)return;if(approveLockedCheck(r.companyId,r.start))return;safe(async()=>{
+      const now=Date.now();
+      if(r.type==='edit'&&r.shiftId&&S.shifts[r.shiftId]){const s=S.shifts[r.shiftId];await patch('shifts',r.shiftId,{start:r.start,end:r.end,month:monthKey(new Date(r.start)),editedAt:now});await logAudit('approve',s,r.shiftId,snap(s),snap(Object.assign({},s,{start:r.start,end:r.end})));}
+      else{const nid=newId('shifts');const ns={workerId:r.workerId,companyId:r.companyId||(S.workers[r.workerId]||{}).companyId||'',start:r.start,end:r.end,month:monthKey(new Date(r.start)),createdAt:now,editedAt:now,breaks:[],source:'request'};await put('shifts',nid,ns);await logAudit('approve',ns,nid,null,snap(ns));}
+      await patch('requests',id,{status:'approved',decidedAt:now,decidedBy:S.uid});},'Одобрено, время обновлено');},
+  reject(id){safe(()=>patch('requests',id,{status:'rejected',decidedAt:Date.now(),decidedBy:S.uid}),'Запрос отклонён');},
   repWorker(id){S.repWorker=id;render();window.scrollTo(0,0);},
   repBack(){S.repWorker=null;render();},
   shiftAdd(wid){shiftModal(null,wid);},
   shiftEdit(id){shiftModal(id);},
-  shiftDelete(id){confirmModal('Удалить эту смену?','Удалить',()=>safe(()=>remove('shifts',id),'Смена удалена'));},
+  shiftDelete(id){const s=S.shifts[id];confirmModal('Удалить эту смену?','Удалить',()=>safe(async()=>{await remove('shifts',id);await logAudit('delete',s,id,snap(s),null);},'Смена удалена'));},
+  adjAdd(wid){adjModal(wid);},
+  adjDel(id){confirmModal('Удалить эту доплату/вычет?','Удалить',()=>safe(()=>remove('adj',id),'Удалено'));},
   workerForm(id){workerModal(id||null);},
   companyForm(id){companyModal(id||null);},
-  companyDelete(id){const n=Object.values(S.workers).filter(w=>w.companyId===id).length;
-    if(n){toast('Сначала переведите или удалите работников этой компании ('+n+')');return;}
-    confirmModal('Удалить компанию «'+companyName(id)+'»?','Удалить',()=>safe(()=>remove('companies',id),'Компания удалена'));},
+  companyDelete(id){const n=Object.values(S.workers).filter(w=>w.companyId===id).length;if(n){toast('Сначала переведите или удалите работников этой компании ('+n+')');return;}confirmModal('Удалить компанию «'+companyName(id)+'»?','Удалить',()=>safe(()=>remove('companies',id),'Компания удалена'));},
+  sitesForm(id){sitesModal(id);},
+  siteNew(){readSiteInputs();siteDraft.sites.push({id:uid(),name:'Объект '+(siteDraft.sites.length+1),radius:200});sitesModal();},
+  siteDel(i){readSiteInputs();siteDraft.sites.splice(Number(i),1);sitesModal();},
+  async siteHere(i){readSiteInputs();toast('Определяем место…');const loc=await getLoc();if(!loc){toast('Не удалось определить место. Разрешите геолокацию для браузера.');return;}Object.assign(siteDraft.sites[Number(i)],{lat:loc.lat,lng:loc.lng});sitesModal();toast('Место объекта задано (точность ~'+loc.acc+' м)');},
+  holAdd(){holModal();},
+  holAll(){S.showAllHol=!S.showAllHol;render();},
+  holDel(k){const days=Object.assign({},S.holidays);delete days[k];safe(()=>B.put('settings','holidays',{days}),'Удалено');},
+  async holLoad(){
+    toast('Загружаем праздники…');const y=new Date().getFullYear();const days=Object.assign({},S.holidays);let added=0;
+    try{
+      for(const yr of [y,y+1]){
+        const res=await fetch('https://www.hebcal.com/hebcal?v=1&cfg=json&maj=on&mod=on&i=on&year='+yr);const j=await res.json();
+        const items=j.items||[];const yt=new Set(items.filter(x=>x.yomtov).map(x=>x.date.slice(0,10)));
+        items.forEach(x=>{const d=String(x.date).slice(0,10);
+          if(x.yomtov||/^Yom HaAtzma/.test(x.title)){if(!days[d])added++;days[d]={name:x.title,type:'holiday'};}
+          else if(/^Erev /.test(x.title)&&yt.has(addDays(d,1))&&!yt.has(d)){if(!days[d])added++;days[d]={name:x.title,type:'eve'};}
+        });
+      }
+      await B.put('settings','holidays',{days});toast('Готово: добавлено '+added+' дн. на '+y+'–'+(y+1)+' гг.');
+    }catch(e){console.error(e);toast(String(e&&e.code||'').includes('permission')?t('eNoRights'):'Не удалось загрузить. Добавьте праздники вручную.');}
+  },
+  async lockMonth(how){
+    const m=S.period.month;const ids=S.repCompany==='all'?scopedCompanies().map(([id])=>id):[S.repCompany];
+    const go=()=>safe(async()=>{for(const id of ids){const c=S.companies[id];const l=new Set(Array.isArray(c.locked)?c.locked:[]);how==='lock'?l.add(m):l.delete(m);await patch('companies',id,{locked:[...l].sort()});}},how==='lock'?'Месяц закрыт':'Месяц открыт для правок');
+    if(how==='lock')confirmModal('Закрыть '+monthLabel(m)+(ids.length>1?' для всех компаний':' для «'+companyName(ids[0])+'»')+'? Смены, запросы и доплаты за этот месяц больше нельзя будет менять.','Закрыть месяц',go);else go();
+  },
   regForm(){regModal();},
   actAsAdmin(id){S.me=id;S.asAdminPreview=true;S.view='admin';S.tab='now';S.repWorker=null;S.repCompany='all';render();window.scrollTo(0,0);},
   myTable(){S.view='worker';S.me=S.uid;S.month=monthKey(new Date());syncSubs();render();window.scrollTo(0,0);},
   regAccept(id){workerModal(id);},
   regReject(id){const w=S.workers[id]||{};confirmModal('Отклонить регистрацию '+(w.name||'')+'?','Отклонить',()=>safe(()=>patch('workers',id,{status:'rejected',active:false}),'Регистрация отклонена'));},
   openTable(id){S.tab='report';S.repWorker=id;render();window.scrollTo(0,0);},
-  actAs(id){S.me=id;S.asAdminPreview=true;S.view='worker';S.month=monthKey(new Date());render();window.scrollTo(0,0);},
+  actAs(id){S.me=id;S.asAdminPreview=true;S.view='worker';S.month=monthKey(new Date());syncSubs();render();window.scrollTo(0,0);},
   export(){doExport();},
-  copyCsv(){const t=document.getElementById('csvbox');if(!t)return;navigator.clipboard.writeText(t.value).then(()=>toast('Скопировано'),()=>{t.focus();t.select();toast('Выделено, скопируйте вручную');});},
   closeModal(){closeModal();},
   confirmOk(){const f=pendingConfirm;pendingConfirm=null;closeModal();if(f)f();}
 };
+function readSiteInputs(){if(!siteDraft)return;$modal.querySelectorAll('[data-site]').forEach(el=>{const i=Number(el.dataset.site),k=el.dataset.k;if(siteDraft.sites[i])siteDraft.sites[i][k]=k==='radius'?Number(el.value)||200:el.value.trim();});}
 const CHANGE={repCompany(v){S.repCompany=v;render();}};
 const FORM={
   async login(){
     const id=S.login.id.trim(),pin=S.login.pin;
-    if(!id||!pin){S.loginErr='Введите логин и пароль';render();return;}
-    let email=null;
-    S.busy=true;S.loginErr='';render();
+    if(!id||!pin){S.loginErr=t('errEnter');render();return;}
+    let email=null;S.busy=true;S.loginErr='';render();
     try{
       if(id.includes('@'))email=normEmail(id);
       else{const key=loginKey(id);const d=key?await B.get('logins',key):null;if(d)email=d.email;}
-      if(!email){S.loginErr='Такой ID или телефон не найден';return;}
-      await B.signIn(email,pin);
-      S.login={id:'',pin:''};
-    }catch(e){
-      const c=String(e&&e.code||'');
-      S.loginErr=c.includes('too-many')?'Слишком много попыток. Подождите пару минут.':c.includes('network')?'Нет связи с сервером':'Неверный логин или пароль';
-    }finally{S.busy=false;render();}
+      if(!email){S.loginErr=t('errNotFound');return;}
+      await B.signIn(email,pin);S.login={id:'',pin:''};
+    }catch(e){const c=String(e&&e.code||'');S.loginErr=c.includes('too-many')?t('errTooMany'):c.includes('network')?t('errNetwork'):t('errWrong');}
+    finally{S.busy=false;render();}
   },
   company(fd,f){
     const id=f.dataset.id||newId('companies');const num=k=>Number(fd.get(k));
-    const rules={norm:num('norm'),ot1Hours:num('ot1Hours'),ot1:num('ot1'),ot2:num('ot2'),breakMin:num('breakMin')||0,day:[0,1,2,3,4,5,6].map(i=>num('d'+i)||100)};
+    const rules={norm:num('norm'),ot1Hours:num('ot1Hours'),ot1:num('ot1'),ot2:num('ot2'),breakMin:num('breakMin')||0,holiday:num('holiday')||150,eve:num('eve')||125,maxShiftH:num('maxShiftH')||12,day:[0,1,2,3,4,5,6].map(i=>num('d'+i)||100)};
     const data=Object.assign({},f.dataset.id?S.companies[id]:{createdAt:Date.now()},{name:String(fd.get('name')).trim(),rules});
     closeModal();safe(()=>put('companies',id,data),'Сохранено');
   },
+  sites(){
+    readSiteInputs();const d=siteDraft;
+    if(d.sites.some(s=>!s.name)){toast('У каждого объекта должно быть название');return;}
+    const sites=d.sites.map(s=>{const o={id:s.id,name:s.name,radius:Number(s.radius)||200};if(isFinite(s.lat)&&isFinite(s.lng)){o.lat=s.lat;o.lng=s.lng;}return o;});
+    closeModal();siteDraft=null;safe(()=>patch('companies',d.cid,{sites}),'Объекты сохранены');
+  },
+  hol(fd){const d=String(fd.get('date')||'');if(!d)return;const days=Object.assign({},S.holidays,{[d]:{name:String(fd.get('name')||'').trim()||(fd.get('type')==='eve'?'Канун праздника':'Праздник'),type:fd.get('type')==='eve'?'eve':'holiday'}});closeModal();safe(()=>B.put('settings','holidays',{days}),'Добавлено');},
+  adj(fd,f){
+    const err=x=>{document.getElementById('aerr').textContent=x;};
+    const wid=f.dataset.worker;const w=S.workers[wid]||{};const kind=String(fd.get('kind'));const amt=Number(fd.get('amount'));const date=String(fd.get('date')||'');
+    if(!(amt>0))return err('Укажите сумму больше нуля');if(!date)return err('Укажите дату');
+    if(isLocked(w.companyId,date.slice(0,7)))return err('Этот месяц закрыт');
+    const sign=(ADJ_KINDS[kind]||{sign:1}).sign;
+    closeModal();safe(()=>put('adj',newId('adj'),{workerId:wid,companyId:w.companyId||'',kind,amount:Math.round(amt*100)/100*sign,date,month:date.slice(0,7),note:String(fd.get('note')||'').trim().slice(0,200),createdAt:Date.now(),by:S.uid}),'Добавлено');
+  },
+  prange(fd){const a=String(fd.get('from')||''),b=String(fd.get('to')||'');if(!a||!b)return;S.period.from=a<b?a:b;S.period.to=a<b?b:a;syncSubs();render();},
   async worker(fd,f){
-    const err=t=>{document.getElementById('werr').textContent=t;};
+    const err=x=>{document.getElementById('werr').textContent=x;};
     const id=f.dataset.id||null;
     const phone=String(fd.get('phone')||'').trim(),email=normEmail(fd.get('email'));
     if(phone&&digits(phone).length<7)return err('Проверьте номер телефона');
     if(phone&&findDup('phone',phone,id))return err('Этот телефон уже есть у другого работника');
     const a=adm();
     const base=Object.assign({},id?S.workers[id]:{createdAt:Date.now(),role:'worker',manages:[]});
-    const data=Object.assign(base,{name:String(fd.get('name')).trim(),phone,companyId:fd.get('companyId'),rate:Number(fd.get('rate'))||0,active:fd.get('active')==='on',status:'active'});
-    if(a.roles&&fd.get('role')){
-      const role=String(fd.get('role'));const manages=fd.getAll('manages').map(String);
-      if(role==='manager'&&!manages.length)return err('Отметьте компании, которыми управляет старший');
-      data.role=role;data.manages=role==='manager'?manages:[];
-    }
+    const data=Object.assign(base,{name:String(fd.get('name')).trim(),phone,companyId:fd.get('companyId'),rate:Number(fd.get('rate'))||0,travel:Number(fd.get('travel'))||0,active:fd.get('active')==='on',status:'active'});
+    if(a.roles&&fd.get('role')){const role=String(fd.get('role'));const manages=fd.getAll('manages').map(String);if(role==='manager'&&!manages.length)return err('Отметьте компании, которыми управляет старший');data.role=role;data.manages=role==='manager'?manages:[];}
     const btn=f.querySelector('button[type=submit]');btn.disabled=true;
     try{
       if(!id){
@@ -664,65 +942,66 @@ const FORM={
         if(pass.length<6)throw {msg:'Пароль: минимум 6 символов'};
         if(!phone&&!email)throw {msg:'Укажите телефон или email'};
         if(phone){const ex=await B.get('logins','p_'+normPhone(phone));if(ex)throw {msg:'Этот телефон уже зарегистрирован'};}
-        const authEmail=email||phoneEmail(phone);
-        let nid;
+        const authEmail=email||phoneEmail(phone);let nid;
         try{nid=await B.createOther(authEmail,pass);}catch(e){throw {msg:String(e.code||'').includes('email-already')?'Этот email уже зарегистрирован':'Не удалось создать вход: '+(e.code||e.message)};}
         data.code=await B.nextCode();data.email=email;data.authEmail=authEmail;
-        await put('workers',nid,data);
-        await B.put('logins','c_'+data.code,{email:authEmail,uid:nid});
+        await put('workers',nid,data);await B.put('logins','c_'+data.code,{email:authEmail,uid:nid});
         if(phone)await B.put('logins','p_'+normPhone(phone),{email:authEmail,uid:nid});
-        closeModal();
-        openModal('<h2>Работник добавлен</h2><p>ID для входа: <b class="tnum" style="font-size:22px">'+esc(data.code)+'</b></p><p class="muted">Сообщите ему ID (или телефон/email) и пароль.</p><button class="btn primary" data-act="closeModal">Понятно</button>');
+        closeModal();openModal('<h2>Работник добавлен</h2><p>ID для входа: <b class="tnum" style="font-size:22px">'+esc(data.code)+'</b></p><p class="muted">Сообщите ему ID (или телефон/email) и пароль.</p><button class="btn primary" data-act="closeModal">Понятно</button>');
       }else{
-        const old=S.workers[id]||{};
-        await put('workers',id,data);
-        if(normPhone(old.phone)!==normPhone(phone)){
-          if(old.phone)await B.remove('logins','p_'+normPhone(old.phone)).catch(()=>{});
-          if(phone)await B.put('logins','p_'+normPhone(phone),{email:data.authEmail||old.authEmail,uid:id});
-        }
+        const old=S.workers[id]||{};await put('workers',id,data);
+        if(normPhone(old.phone)!==normPhone(phone)){if(old.phone)await B.remove('logins','p_'+normPhone(old.phone)).catch(()=>{});if(phone)await B.put('logins','p_'+normPhone(phone),{email:data.authEmail||old.authEmail,uid:id});}
         closeModal();toast('Сохранено');
       }
     }catch(e){btn.disabled=false;err(e&&e.msg?e.msg:errText(e));}
   },
   async register(fd){
-    const err=t=>{const el=document.getElementById('gerr');if(el)el.textContent=t;};
+    const err=x=>{const el=document.getElementById('gerr');if(el)el.textContent=x;};
     const name=String(fd.get('name')||'').trim(),phone=String(fd.get('phone')||'').trim(),email=normEmail(fd.get('email'));
     const pass=String(fd.get('pass')||''),pass2=String(fd.get('pass2')||'');
-    if(!name)return err('Укажите имя');
-    if(!phone&&!email)return err('Укажите телефон или email');
-    if(phone&&digits(phone).length<7)return err('Проверьте номер телефона');
-    if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return err('Проверьте email');
-    if(pass.length<6)return err('Пароль: минимум 6 символов');
-    if(pass!==pass2)return err('Пароли не совпадают');
+    if(!name)return err(t('eName'));if(!phone&&!email)return err(t('ePhoneOrEmail'));
+    if(phone&&digits(phone).length<7)return err(t('ePhone'));
+    if(email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))return err(t('eEmail'));
+    if(pass.length<6)return err(t('ePass6'));if(pass!==pass2)return err(t('ePassMatch'));
     const ownerReg=!!email&&OWNER_EMAILS.map(normEmail).includes(email);
-    if(!fd.get('companyId')&&!ownerReg)return err('Компаний пока нет. Попросите администратора добавить их.');
-    try{if(phone&&await B.get('logins','p_'+normPhone(phone)))return err('Такой телефон уже зарегистрирован. Попробуйте войти.');}catch(e){return err('Нет связи с сервером');}
+    if(!fd.get('companyId')&&!ownerReg)return err(t('eNoCo'));
+    try{if(phone&&await B.get('logins','p_'+normPhone(phone)))return err(t('ePhoneTaken'));}catch(e){return err(t('errNetwork'));}
     S.pendingProfile={name,phone,email,companyId:fd.get('companyId')||''};
     try{await B.signUp(email||phoneEmail(phone),pass);closeModal();}
-    catch(e){S.pendingProfile=null;const c=String(e&&e.code||'');err(c.includes('email-already')?'Такой '+(email?'email':'телефон')+' уже зарегистрирован. Попробуйте войти.':c.includes('weak')?'Слишком простой пароль':'Не получилось: '+(c||'ошибка'));}
+    catch(e){S.pendingProfile=null;const c=String(e&&e.code||'');err(c.includes('email-already')?(email?t('eEmailTaken'):t('ePhoneTaken')):c.includes('weak')?t('eWeak'):t('eFail'));}
   },
   async profile(fd){
-    const err=t=>{document.getElementById('perr').textContent=t;};
+    const err=x=>{document.getElementById('perr').textContent=x;};
     const name=String(fd.get('name')||'').trim(),phone=String(fd.get('phone')||'').trim();
-    if(!name)return err('Укажите имя');
-    if(phone&&digits(phone).length<7)return err('Проверьте номер телефона');
-    const ok=await createProfile({name,phone,email:isPhoneEmail(S.email)?'':S.email,companyId:fd.get('companyId')});
-    if(!ok)err('Не получилось сохранить, попробуйте ещё раз');
+    if(!name)return err(t('eName'));if(phone&&digits(phone).length<7)return err(t('ePhone'));
+    const ok=await createProfile({name,phone,email:isPhoneEmail(S.email)?'':S.email,companyId:fd.get('companyId')||''});
+    if(!ok)err(t('eFail'));
   },
   shift(fd,f){
     const a=fromInput(fd.get('start')),bRaw=fd.get('end'),b=bRaw?fromInput(bRaw):null;
     const e=b===null?(isFinite(a)?'':'Укажите начало'):checkTimes(a,b);if(e){document.getElementById('serr').textContent=e;return;}
-    const sid=f.dataset.id,wid=f.dataset.worker;closeModal();
-    if(sid)safe(()=>patch('shifts',sid,{start:a,end:b,month:monthKey(new Date(a)),editedAt:Date.now()}),'Смена изменена');
-    else safe(()=>put('shifts',newId('shifts'),{workerId:wid,companyId:(S.workers[wid]||{}).companyId||'',start:a,end:b,month:monthKey(new Date(a)),createdAt:Date.now(),editedAt:Date.now()}),'Смена добавлена');
+    const sid=f.dataset.id,wid=f.dataset.worker;const w=S.workers[wid]||{};
+    const cid=sid?S.shifts[sid].companyId:(w.companyId||'');
+    if(isLocked(cid,monthKey(new Date(a)))){document.getElementById('serr').textContent='Этот месяц закрыт';return;}
+    const brMin=Math.max(0,Number(fd.get('breakMin'))||0);const siteId=fd.has('siteId')?(fd.get('siteId')||null):undefined;
+    const old=sid?S.shifts[sid]:null;const oldBr=old?Math.round(shiftWork(old,old.end||Date.now()).br/60000):0;
+    let breaks=old&&Array.isArray(old.breaks)?old.breaks:[];
+    if(!old||brMin!==oldBr)breaks=brMin>0?[{s:a,e:a+brMin*60000,manual:true}]:[];
+    const now=Date.now();closeModal();
+    if(sid){const upd={start:a,end:b,month:monthKey(new Date(a)),breaks,editedAt:now};if(siteId!==undefined)upd.siteId=siteId;
+      safe(async()=>{await patch('shifts',sid,upd);await logAudit('edit',old,sid,snap(old),snap(Object.assign({},old,upd)));},'Смена изменена');}
+    else{const ns={workerId:wid,companyId:cid,start:a,end:b,month:monthKey(new Date(a)),breaks,createdAt:now,editedAt:now,source:'admin',siteId:siteId||null};const nid=newId('shifts');
+      safe(async()=>{await put('shifts',nid,ns);await logAudit('add',ns,nid,null,snap(ns));},'Смена добавлена');}
   },
   request(fd,f){
     const a=fromInput(fd.get('start')),b=fromInput(fd.get('end'));const e=checkTimes(a,b);if(e){document.getElementById('rerr').textContent=e;return;}
     const sid=f.dataset.id||null;const s=sid?S.shifts[sid]:null;const w=S.workers[S.me]||{};
+    if(isLocked(w.companyId,monthKey(new Date(a)))){document.getElementById('rerr').textContent=t('monthLocked');return;}
     const data={workerId:S.me,companyId:w.companyId||'',type:sid?'edit':'add',shiftId:sid,start:a,end:b,comment:String(fd.get('comment')||'').trim().slice(0,300),status:'pending',createdAt:Date.now()};
     if(s){data.oldStart=s.start;data.oldEnd=s.end||null;}
-    closeModal();safe(()=>put('requests',newId('requests'),data),'Запрос отправлен старшему');
-  }
+    closeModal();safe(()=>put('requests',newId('requests'),data),t('tReqSent'));
+  },
+  async forgot(fd){const e=normEmail(fd.get('email'));closeModal();try{await B.reset(e);}catch(x){}toast(t('forgotSent'));}
 };
 
 document.addEventListener('click',e=>{
@@ -731,17 +1010,19 @@ document.addEventListener('click',e=>{
   const fn=ACT[el.dataset.act];if(fn){e.preventDefault();fn(el.dataset.arg);}
 });
 document.addEventListener('submit',e=>{const f=e.target.closest('form[data-form]');if(!f)return;e.preventDefault();const fn=FORM[f.dataset.form];if(fn)fn(new FormData(f),f);});
-document.addEventListener('input',e=>{const b=e.target.dataset&&e.target.dataset.bind;if(b){S.login[b]=e.target.value;if(S.loginErr){S.loginErr='';}}});
+document.addEventListener('input',e=>{const b=e.target.dataset&&e.target.dataset.bind;if(b){S.login[b]=e.target.value;if(S.loginErr)S.loginErr='';}});
 document.addEventListener('change',e=>{if(e.target.dataset&&e.target.dataset.rolepick!==undefined){const b=document.getElementById('manBox');if(b)b.hidden=e.target.value!=='manager';}const c=e.target.dataset&&e.target.dataset.change;if(c&&CHANGE[c])CHANGE[c](e.target.value);});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$modal.hidden)closeModal();});
 
 /* ---------- render ---------- */
 function render(){
   const ae=document.activeElement;const fid=ae&&ae.id&&$app.contains(ae)?ae.id:null;let sel=null;try{sel=fid?ae.selectionStart:null;}catch(e){}
+  const workerSide=S.view!=='admin'||!S.uid;
+  document.documentElement.lang=workerSide?LANG:'ru';document.documentElement.dir=workerSide&&LANG==='he'?'rtl':'ltr';
   $top.innerHTML=topBar();
   let h='';
   if(S.error)h+='<div class="banner">'+linkify(S.error)+'</div>';
-  if(!S.ready||(S.uid&&(!S.profileLoaded||S.creating))){h+='<p class="muted">Загрузка…</p>'+(S.slow?'<div class="banner">Данные пока не загрузились. Проверьте интернет.</div>':'');}
+  if(!S.ready||(S.uid&&(!S.profileLoaded||S.creating))){h+='<p class="muted">'+t('loading')+'</p>'+(S.slow?'<div class="banner">'+t('eNet')+'</div>':'');}
   else if(!S.uid){S.view='start';h+=startView();}
   else if(!S.workers[S.uid]&&!isOwnerEmail()){h+=profileFormView();}
   else if(S.workers[S.uid]&&!isOwnerEmail()&&(S.workers[S.uid].status!=='active'||S.workers[S.uid].active===false)){h+=statusView();}
@@ -749,20 +1030,16 @@ function render(){
     if(S.view==='admin'&&adm())h+=adminView();
     else if(S.me&&S.workers[S.me]){S.view='worker';h+=workerView();}
     else if(adm()){S.view='admin';h+=adminView();}
-    else h+='<p class="muted">Загрузка…</p>';
+    else h+='<p class="muted">'+t('loading')+'</p>';
   }
   $app.innerHTML=h;
   if(fid){const n=document.getElementById(fid);if(n){n.focus();try{if(sel!=null)n.setSelectionRange(sel,sel);}catch(e){}}}
 }
-function linkify(t){return esc(t).replace(/https:\/\/[^\s<]+/g,u=>'<a href="'+u+'" target="_blank" rel="noopener">ссылка</a>');}
-function forgotModal(){
-  openModal('<form data-form="forgot" style="display:flex;flex-direction:column;gap:12px"><h2>Восстановить пароль</h2><p class="muted">Пришлём письмо со ссылкой для нового пароля. Работает, если при регистрации был указан email.</p>'+
-  fld('femail','Email','<input id="femail" name="email" type="email" autocapitalize="off" required value="'+esc(S.login.id.includes('@')?S.login.id:'')+'">')+
-  '<p class="muted small">Регистрировались только по телефону? Обратитесь к старшему своей компании.</p>'+
-  '<div class="row"><button class="btn primary" type="submit">Отправить</button><button class="btn" type="button" data-act="closeModal">Отмена</button></div></form>');
-}
-FORM.forgot=async function(fd){const e=normEmail(fd.get('email'));closeModal();try{await B.reset(e);}catch(x){}toast('Если такой email есть, письмо уже отправлено');};
-setInterval(()=>{document.querySelectorAll('[data-since]').forEach(el=>{el.textContent=hm(Date.now()-Number(el.dataset.since));});},15000);
+function linkify(x){return esc(x).replace(/https:\/\/[^\s<]+/g,u=>'<a href="'+u+'" target="_blank" rel="noopener">ссылка</a>');}
+setInterval(()=>{
+  document.querySelectorAll('[data-since]').forEach(el=>{el.textContent=hm(Date.now()-Number(el.dataset.since));});
+  document.querySelectorAll('[data-work]').forEach(el=>{const s=S.shifts[el.dataset.work];if(s)el.textContent=hm(shiftWork(s).ms);});
+},15000);
 
 /* ---------- backends ---------- */
 function makeFirebase(M){
@@ -782,7 +1059,7 @@ function makeFirebase(M){
     patch:(col,id,d)=>F.updateDoc(F.doc(fdb,col,id),d),
     remove:(col,id)=>F.deleteDoc(F.doc(fdb,col,id)),
     newId:col=>F.doc(F.collection(fdb,col)).id,
-    nextCode(){return F.runTransaction(fdb,async t=>{const ref=F.doc(fdb,'meta','counter');const x=await t.get(ref);const n=x.exists()?Number(x.data().next)||1:1;if(x.exists())t.update(ref,{next:n+1});else t.set(ref,{next:n+1});return String(n).padStart(4,'0');});},
+    nextCode(){return F.runTransaction(fdb,async tr=>{const ref=F.doc(fdb,'meta','counter');const x=await tr.get(ref);const n=x.exists()?Number(x.data().next)||1:1;if(x.exists())tr.update(ref,{next:n+1});else tr.set(ref,{next:n+1});return String(n).padStart(4,'0');});},
     listen(q,next,err){
       if(q.id)return F.onSnapshot(F.doc(fdb,q.col,q.id),x=>next(x.exists()?{[x.id]:x.data()}:{}),err);
       const ref=F.query(F.collection(fdb,q.col),...(q.where||[]).map(w=>F.where(w[0],w[1],w[2])));
@@ -791,7 +1068,7 @@ function makeFirebase(M){
   };
 }
 function makeDemo(){
-  const D={companies:{},users:{},shifts:{},requests:{},logins:{},meta:{}};
+  const D={companies:{},users:{},shifts:{},requests:{},logins:{},meta:{},adjustments:{},audit:{},settings:{}};
   const acc={'admin@demo.ru':{pass:'123456',uid:'demo-admin'}};
   let cur=null;const cbs=[];const subs=new Set();
   const clone=o=>JSON.parse(JSON.stringify(o));
@@ -799,6 +1076,7 @@ function makeDemo(){
   const fail=c=>{const e=new Error(c);e.code=c;return e;};
   const match=(d,w)=>w.every(([f,op,v])=>op==='=='?((d[f]===undefined?null:d[f])===v):op==='in'?v.includes(d[f]):true);
   const emit=()=>setTimeout(()=>cbs.forEach(c=>c(cur)),0);
+  window.__demo={D,acc,setUser(e){cur={uid:acc[e].uid,email:e};emit();}};
   return {
     demo:true,
     onAuth(cb){cbs.push(cb);setTimeout(()=>cb(cur),0);},
@@ -818,52 +1096,50 @@ function makeDemo(){
 }
 
 /* ---------- subscriptions ---------- */
-const SRC={users:{},shifts:{},requests:{}};
+const SRC={users:{},shifts:{},requests:{},adj:{},audit:{}};
 let dataUnsubs=[],meUnsub=null;
 function mergeSrc(){
   const mg=k=>Object.assign({},...Object.values(SRC[k]));
-  S.workers=mg('users');S.shifts=mg('shifts');S.requests=mg('requests');
+  S.workers=mg('users');S.shifts=mg('shifts');S.requests=mg('requests');S.adj=mg('adj');S.audit=mg('audit');
 }
 function listen(kind,name,q){
-  const u=B.listen(q,m=>{SRC[kind][name]=m;mergeSrc();render();},e=>{console.error(e);S.error='Ошибка загрузки данных: '+(e.message||e.code);render();});
+  const u=B.listen(q,m=>{if(kind==='hol'){S.holidays=(m.holidays&&m.holidays.days)||{};render();return;}SRC[kind][name]=m;mergeSrc();render();},e=>{console.error(q,e);if(['hol','adj','audit'].includes(kind))return;S.error='Ошибка загрузки данных: '+(e.message||e.code);render();});
   dataUnsubs.push(u);
 }
 let subKey='';
 function syncSubs(){
-  const r=myRights();const prof=S.workers[S.uid]||SRC.users.me&&SRC.users.me[S.uid];
-  const active=prof&&prof.status==='active'&&prof.active!==false;
-  const key=JSON.stringify([S.uid,S.month,r&&r.all,r&&r.set?[...r.set].sort():null,!!active]);
+  const r=myRights();const prof=S.workers[S.uid]||(SRC.users.me&&SRC.users.me[S.uid]);
+  const active=!!prof&&prof.status==='active'&&prof.active!==false;
+  const months=new Set([S.month]);if(r){const [a,b]=periodRange();monthsBetween(a,b).forEach(m=>months.add(m));}
+  const ms=[...months].sort();
+  const key=JSON.stringify([S.uid,ms,r&&r.all,r&&r.set?[...r.set].sort():null,active]);
   if(key===subKey)return;subKey=key;
   dataUnsubs.forEach(u=>u());dataUnsubs=[];
-  ['shifts','requests'].forEach(k=>{SRC[k]={};});Object.keys(SRC.users).forEach(k=>{if(k!=='me')delete SRC.users[k];});
+  ['shifts','requests','adj','audit'].forEach(k=>{SRC[k]={};});Object.keys(SRC.users).forEach(k=>{if(k!=='me')delete SRC.users[k];});
   mergeSrc();
   if(!S.uid)return;
+  listen('hol','hol',{col:'settings',id:'holidays'});
   if(r&&r.all){
-    listen('users','all',{col:'users'});
-    listen('shifts','mAll',{col:'shifts',where:[['month','==',S.month]]});
+    listen('users','all',{col:'users'});listen('requests','all',{col:'requests'});
     listen('shifts','oAll',{col:'shifts',where:[['end','==',null]]});
-    listen('requests','all',{col:'requests'});
+    ms.forEach(m=>{listen('shifts','m'+m,{col:'shifts',where:[['month','==',m]]});listen('adj','m'+m,{col:'adjustments',where:[['month','==',m]]});listen('audit','m'+m,{col:'audit',where:[['month','==',m]]});});
   }else if(r&&r.set&&r.set.size){
     const ids=[...r.set].slice(0,30);
-    listen('users','mine',{col:'users',where:[['companyId','in',ids]]});
-    listen('shifts','mCo',{col:'shifts',where:[['companyId','in',ids],['month','==',S.month]]});
+    listen('users','mine',{col:'users',where:[['companyId','in',ids]]});listen('requests','co',{col:'requests',where:[['companyId','in',ids]]});
     listen('shifts','oCo',{col:'shifts',where:[['companyId','in',ids],['end','==',null]]});
-    listen('requests','co',{col:'requests',where:[['companyId','in',ids]]});
+    ms.forEach(m=>{listen('shifts','c'+m,{col:'shifts',where:[['companyId','in',ids],['month','==',m]]});listen('adj','c'+m,{col:'adjustments',where:[['companyId','in',ids],['month','==',m]]});listen('audit','c'+m,{col:'audit',where:[['companyId','in',ids],['month','==',m]]});});
   }
   if(active){
-    listen('shifts','mMe',{col:'shifts',where:[['workerId','==',S.uid],['month','==',S.month]]});
-    listen('shifts','oMe',{col:'shifts',where:[['workerId','==',S.uid],['end','==',null]]});
-    listen('requests','me',{col:'requests',where:[['workerId','==',S.uid]]});
+    listen('shifts','oMe',{col:'shifts',where:[['workerId','==',S.uid],['end','==',null]]});listen('requests','me',{col:'requests',where:[['workerId','==',S.uid]]});
+    ms.forEach(m=>{listen('shifts','me'+m,{col:'shifts',where:[['workerId','==',S.uid],['month','==',m]]});listen('adj','me'+m,{col:'adjustments',where:[['workerId','==',S.uid],['month','==',m]]});});
   }
 }
 async function createProfile(p,owner){
   if(S.creating)return false;S.creating=true;render();
   try{
-    const code=await B.nextCode();
-    const authEmail=S.email;
-    const data={code,name:p.name,phone:p.phone||'',email:p.email||'',authEmail,companyId:p.companyId||'',rate:0,role:owner?'super':'worker',manages:[],status:owner?'active':'pending',active:!!owner,createdAt:Date.now()};
-    await B.put('users',S.uid,data);
-    await B.put('logins','c_'+code,{email:authEmail,uid:S.uid});
+    const code=await B.nextCode();const authEmail=S.email;
+    const data={code,name:p.name,phone:p.phone||'',email:p.email||'',authEmail,companyId:p.companyId||'',rate:0,travel:0,role:owner?'super':'worker',manages:[],status:owner?'active':'pending',active:!!owner,createdAt:Date.now()};
+    await B.put('users',S.uid,data);await B.put('logins','c_'+code,{email:authEmail,uid:S.uid});
     if(p.phone)await B.put('logins','p_'+normPhone(p.phone),{email:authEmail,uid:S.uid});
     return true;
   }catch(e){console.error(e);S.error='Не удалось сохранить профиль: '+(e.code||e.message);return false;}
@@ -879,10 +1155,7 @@ function onAuthUser(u){
   meUnsub=B.listen({col:'users',id:u.uid},m=>{
     SRC.users.me=m;mergeSrc();S.profileLoaded=true;
     const prof=m[u.uid];
-    if(!prof&&!S.creating){
-      if(S.pendingProfile)createProfile(S.pendingProfile,isOwnerEmail());
-      else if(isOwnerEmail())createProfile({name:'Главный админ',email:S.email},true);
-    }
+    if(!prof&&!S.creating){if(S.pendingProfile)createProfile(S.pendingProfile,isOwnerEmail());else if(isOwnerEmail())createProfile({name:'Главный админ',email:S.email},true);}
     if(first&&prof){first=false;S.view=(myRights()?'admin':'worker');}
     syncSubs();render();
   },e=>{S.profileLoaded=true;S.error='Ошибка загрузки профиля: '+(e.message||e.code);render();});
@@ -893,13 +1166,9 @@ async function init(){
   render();
   const slowT=setTimeout(()=>{if(!S.ready){S.slow=true;render();}},10000);
   if(FIREBASE_CONFIG){
-    try{
-      const [app,auth,fs]=await Promise.all([import(FB_SDK+'firebase-app.js'),import(FB_SDK+'firebase-auth.js'),import(FB_SDK+'firebase-firestore.js')]);
-      B=makeFirebase({app,auth,fs});
-    }catch(e){S.error='Не удалось загрузить сайт. Проверьте интернет и обновите страницу.';S.ready=true;render();return;}
-  }else{
-    B=makeDemo();S.demo=true;OWNER_EMAILS.push('admin@demo.ru');
-  }
+    try{const [app,auth,fs]=await Promise.all([import(FB_SDK+'firebase-app.js'),import(FB_SDK+'firebase-auth.js'),import(FB_SDK+'firebase-firestore.js')]);B=makeFirebase({app,auth,fs});}
+    catch(e){S.error='Не удалось загрузить сайт. Проверьте интернет и обновите страницу.';S.ready=true;render();return;}
+  }else{B=makeDemo();S.demo=true;OWNER_EMAILS.push('admin@demo.ru');}
   let gotCo=false,gotAuth=false;
   const done=()=>{if(gotCo&&gotAuth&&!S.ready){S.ready=true;S.slow=false;clearTimeout(slowT);}render();};
   B.listen({col:'companies'},m=>{S.companies=m;gotCo=true;done();},e=>{S.error='Ошибка загрузки: '+(e.message||e.code);gotCo=true;done();});

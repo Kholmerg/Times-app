@@ -1,11 +1,7 @@
 rules_version = '2';
-// Правила защиты для «Табеля».
-// Главный админ задаётся в owners() ниже — тот же email, что в OWNER_EMAILS на сайте.
 service cloud.firestore {
   match /databases/{database}/documents {
-
     function owners() { return ['alina.drecruitment@gmail.com']; }
-
     function signedIn() { return request.auth != null; }
     function isOwner() {
       return signedIn() && request.auth.token.email != null
@@ -20,30 +16,34 @@ service cloud.firestore {
     function isManager() { return activeMe() && me().role == 'manager'; }
     function manages(cid) { return isSuper() || (isManager() && cid in me().manages); }
     function anyAdmin() { return isSuper() || isManager(); }
-    // время с телефона должно совпадать с серверным (±5 минут): нельзя отметиться задним числом
     function near(t) {
       return t is number && t > request.time.toMillis() - 300000 && t < request.time.toMillis() + 300000;
+    }
+    function locked(cid, m) {
+      return cid is string && cid != ''
+        && exists(/databases/$(database)/documents/companies/$(cid))
+        && m in get(/databases/$(database)/documents/companies/$(cid)).data.get('locked', []);
     }
 
     match /companies/{cid} {
       allow read: if true;
       allow write: if isSuper();
     }
-
+    match /settings/{doc} {
+      allow read: if signedIn();
+      allow write: if isSuper();
+    }
     match /meta/counter {
       allow read: if signedIn();
       allow create: if signedIn() && request.resource.data.next == 2;
       allow update: if signedIn() && request.resource.data.next == resource.data.next + 1;
     }
-
-    // ID / телефон -> email для входа. Читать по одному можно, списком нельзя.
     match /logins/{key} {
       allow get: if true;
       allow list: if false;
       allow create: if signedIn() && (request.resource.data.uid == request.auth.uid || anyAdmin());
       allow update, delete: if anyAdmin();
     }
-
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || manages(resource.data.companyId));
       allow create: if signedIn() && (
@@ -60,25 +60,26 @@ service cloud.firestore {
         && (isSuper() || (resource.data.role == 'worker' && request.resource.data.role == 'worker'));
       allow delete: if isSuper();
     }
-
     match /shifts/{sid} {
       allow read: if signedIn()
         && (resource.data.workerId == request.auth.uid || manages(resource.data.companyId));
-      allow create: if (activeMe()
+      allow create: if !locked(request.resource.data.companyId, request.resource.data.month) && (
+        (activeMe()
             && request.resource.data.workerId == request.auth.uid
             && request.resource.data.companyId == me().companyId
             && near(request.resource.data.start)
             && request.resource.data.end == null)
-        || manages(request.resource.data.companyId);
-      allow update: if (activeMe()
+        || manages(request.resource.data.companyId));
+      allow update: if !locked(resource.data.companyId, resource.data.month) && (
+        (activeMe()
             && resource.data.workerId == request.auth.uid
             && resource.data.end == null
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['end'])
-            && near(request.resource.data.end))
-        || (manages(resource.data.companyId) && manages(request.resource.data.companyId));
-      allow delete: if manages(resource.data.companyId);
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['end', 'endLoc', 'breaks'])
+            && (request.resource.data.end == null || near(request.resource.data.end)))
+        || (manages(resource.data.companyId) && manages(request.resource.data.companyId)
+            && !locked(request.resource.data.companyId, request.resource.data.month)));
+      allow delete: if manages(resource.data.companyId) && !locked(resource.data.companyId, resource.data.month);
     }
-
     match /requests/{rid} {
       allow read: if signedIn()
         && (resource.data.workerId == request.auth.uid || manages(resource.data.companyId));
@@ -87,6 +88,18 @@ service cloud.firestore {
         && request.resource.data.companyId == me().companyId
         && request.resource.data.status == 'pending';
       allow update, delete: if manages(resource.data.companyId);
+    }
+    match /adjustments/{aid} {
+      allow read: if signedIn()
+        && (resource.data.workerId == request.auth.uid || manages(resource.data.companyId));
+      allow create, update: if manages(request.resource.data.companyId)
+        && !locked(request.resource.data.companyId, request.resource.data.month);
+      allow delete: if manages(resource.data.companyId) && !locked(resource.data.companyId, resource.data.month);
+    }
+    match /audit/{xid} {
+      allow read: if manages(resource.data.companyId);
+      allow create: if anyAdmin() && request.resource.data.by == request.auth.uid
+        && manages(request.resource.data.companyId);
     }
   }
 }
