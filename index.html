@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Табель рабочего времени</title>
 <meta name="theme-color" content="#17614f">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -49,6 +49,7 @@
 [hidden]{display:none!important}
 html,body{margin:0;overflow-x:hidden;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.45}
 button,input,select,textarea{font:inherit;color:inherit}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%}
 .num,.tnum{font-variant-numeric:tabular-nums}
 .top{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
 .top .in{max-width:760px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}
@@ -134,7 +135,15 @@ tfoot td{font-weight:700;border-bottom:0}
 .seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;font-weight:600;cursor:pointer;color:var(--muted)}
 .seg button.on{background:var(--ink);color:var(--bg)}
 .dd{position:relative}
-.profile .ava{width:52px;height:52px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:18px;flex:none}
+.profile{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.profile h2{color:var(--accent-ink)}
+.profile .muted{color:var(--accent-ink);opacity:.78}
+.profile .btn{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.28);color:var(--accent-ink)}
+.profile .btn.ghost{background:transparent;border-color:transparent}
+.profile .langs{border-color:rgba(255,255,255,.35)}
+.profile .lang{color:var(--accent-ink);opacity:.85}
+.profile .lang.on{background:var(--accent-ink);color:var(--accent);opacity:1}
+.profile .ava{width:52px;height:52px;border-radius:50%;background:var(--accent-ink);color:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:18px;flex:none}
 .htiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .htile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:start;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);cursor:pointer;min-height:104px}
 .htile .ti{font-size:20px;line-height:1}
@@ -199,9 +208,11 @@ const clock=ms=>{const d=new Date(ms);return pad(d.getHours())+':'+pad(d.getMinu
 const WD=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
 const MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const MGEN=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
-const fmtDay=k=>{const d=parseDay(k);return d.getDate()+' '+MGEN[d.getMonth()]+', '+WD[d.getDay()];};
-const fmtShort=k=>{const d=parseDay(k);return d.getDate()+' '+MGEN[d.getMonth()];};
-const fmtDT=ms=>{const d=new Date(ms);return d.getDate()+' '+MGEN[d.getMonth()]+' '+clock(ms);};
+const LO=o=>k=>parseDay(k).toLocaleDateString(LOCALE[LANG],o);
+const WDL=()=>LANG==='ru'?WD:[0,1,2,3,4,5,6].map(i=>new Date(2024,0,7+i).toLocaleDateString(LOCALE[LANG],{weekday:'short'}));
+const fmtDay=k=>{if(LANG!=='ru')return LO({day:'numeric',month:'long',weekday:'short'})(k);const d=parseDay(k);return d.getDate()+' '+MGEN[d.getMonth()]+', '+WD[d.getDay()];};
+const fmtShort=k=>{if(LANG!=='ru')return LO({day:'numeric',month:'short'})(k);const d=parseDay(k);return d.getDate()+' '+MGEN[d.getMonth()];};
+const fmtDT=ms=>{if(LANG!=='ru')return new Date(ms).toLocaleDateString(LOCALE[LANG],{day:'numeric',month:'short'})+' '+clock(ms);const d=new Date(ms);return d.getDate()+' '+MGEN[d.getMonth()]+' '+clock(ms);};
 const nf=new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0});
 const money=n=>(n<0?'−':'')+nf.format(Math.abs(Math.round(n)))+' ₪';
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -214,7 +225,7 @@ const isPhoneEmail=e=>/@phone\.tabel-app\.com$/.test(String(e||''));
 function loginKey(v){v=String(v||'').trim();const d=digits(v);if(d.length>=7)return 'p_'+normPhone(v);if(/^\d{1,6}$/.test(v))return 'c_'+v.padStart(4,'0');return null;}
 function findDup(field,val,exceptId){if(!val)return null;return Object.entries(S.workers).find(([k,w])=>k!==exceptId&&(field==='phone'?normPhone(w.phone)===normPhone(val):normEmail(w.email)===normEmail(val)));}
 const isPendingReg=w=>w.status==='pending';
-const monthLabel=k=>{const [y,m]=k.split('-').map(Number);return MONTHS[m-1]+' '+y;};
+const monthLabel=k=>{const [y,m]=k.split('-').map(Number);if(LANG!=='ru')return new Date(y,m-1,1).toLocaleDateString(LOCALE[LANG],{month:'long',year:'numeric'});return MONTHS[m-1]+' '+y;};
 const shiftMonth=(k,dir)=>{const [y,m]=k.split('-').map(Number);return monthKey(new Date(y,m-1+dir,1));};
 const monthRange=m=>{const [y,mo]=m.split('-').map(Number);return [m+'-01',dayKey(new Date(y,mo,0).getTime())];};
 const monthsBetween=(a,b)=>{const out=[];let m=a.slice(0,7);const e=b.slice(0,7);while(m<=e&&out.length<6){out.push(m);m=shiftMonth(m,1);}return out;};
@@ -283,6 +294,9 @@ tStarted:'Shift started',tEnded:'Shift ended: {h}',tReqSent:'Request sent to you
 shortShift:'The shift lasted less than a minute. End it?',finish:'End',logout:'Log out',adminPanel:'Admin',youAre:'You are {r}.',roleSuper:'main admin',roleManager:'a supervisor',
 eNoRights:'You don’t have permission for this.',eNet:'No connection to the server. Check the internet.',eSave:'Not saved, try again.',loading:'Loading…',holiday:'holiday',eve:'holiday eve',privacy:'Privacy policy',notifLong:'You have been on shift for {h} h. Don’t forget to end your shift when you leave.',notifForgot:'Your shift has been open for more than {h} h. If you have already left, end the shift and send a time correction.'}
 };
+const AT={"he": {"Язык": "שפה", " <span class=\"pill\">главный админ</span>": "<span class=\"pill\">מנהל ראשי</span>", " <span class=\"pill\">старший</span>": "<span class=\"pill\">אחראי</span>", "Без компании": "ללא חברה", "<button class=\"btn ghost\" data-act=\"backAdmin\">← Выйти из просмотра</button>": "<button class=\"btn ghost\" data-act=\"backAdmin\">← יציאה מהתצוגה</button>", "<button class=\"btn ghost\" data-act=\"myTable\">Мой табель</button>": "<button class=\"btn ghost\" data-act=\"myTable\">הדוח שלי</button>", "Выйти": "יציאה", "<span class=\"pill warn\">Демо: данные не сохраняются</span>": "<span class=\"pill warn\">דמו: הנתונים לא נשמרים</span>", "<div class=\"banner\">Демо-режим: сайт не подключён к базе. Вход: <b>admin@demo.ru</b> / <b>123456</b>.</div>": "<div class=\"banner\">מצב דמו: האתר לא מחובר למסד הנתונים. כניסה: <b>admin@demo.ru</b> / <b>123456</b>.</div>", "<div class=\"banner\">Вы смотрите приложение глазами работника. Кнопки работают по-настоящему.</div>": "<div class=\"banner\">אתם צופים באפליקציה כמו העובד. הכפתורים פועלים באמת.</div>", "Главный администратор": "מנהל ראשי", "Администратор всех компаний": "מנהל כל החברות", "Старший · ": "אחראי · ", "компании не назначены": "לא שויכו חברות", "Доброй ночи": "לילה טוב", "Доброе утро": "בוקר טוב", "Добрый день": "צהריים טובים", "Добрый вечер": "ערב טוב", "<button class=\"btn sm\" data-act=\"myTable\">Мой табель</button>": "<button class=\"btn sm\" data-act=\"myTable\">הדוח שלי</button>", "<button class=\"btn sm ghost\" data-act=\"logout\">Выйти</button></div></section>": "<button class=\"btn sm ghost\" data-act=\"logout\">יציאה</button></div></section>", "смена открыта": "משמרת פתוחה", "смены открыты": "משמרות פתוחות", "смен открыты": "משמרות פתוחות", " слишком долго.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"now\">Посмотреть</button></div>": " זמן רב מדי.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"now\">לצפייה</button></div>", "<div class=\"banner\">Начните с компаний: добавьте их, потом работников.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"companies\">Перейти</button></div>": "<div class=\"banner\">התחילו מהחברות: הוסיפו אותן, ואחר כך עובדים.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"companies\">מעבר</button></div>", "Зарплаты · ": "שכר · ", " ч · нажмите, чтобы открыть отчёт": " ש׳ · לחצו לפתיחת הדוח", "Сейчас на смене": "במשמרת עכשיו", "забытых: ": "נשכחו: ", "Запросы на правку": "בקשות תיקון", "ждут ответа": "ממתינות לתשובה", "всё разобрано": "הכול טופל", "Работники": "עובדים", "новых заявок: ": "הרשמות חדשות: ", "Компании": "חברות", "Главная": "ראשי", "Сейчас": "עכשיו", "Отчёт": "דוח", "Запросы": "בקשות", "<h1>Админ-панель</h1>": "<h1>פאנל ניהול</h1>", "<p class=\"muted small\">Ваши компании: ": "<p class=\"muted small\">החברות שלך: ", "не назначены": "לא שויכו", "<div class=\"banner\">Начните с вкладки «Компании»: добавьте свои компании, потом работников.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"companies\">Перейти</button></div>": "<div class=\"banner\">התחילו מלשונית «חברות»: הוסיפו את החברות, ואחר כך עובדים.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"companies\">מעבר</button></div>", "начало": "התחלה", "конец": "סיום", ": без места</span>": ": ללא מיקום</span>", "на объекте": "באתר", "далеко, ": "רחוק, ", " слишком долго — похоже, забыли нажать «Закончить».</div>": " זמן רב מדי — כנראה שכחו ללחוץ «סיום».</div>", "<section class=\"card\"><div class=\"row between\"><h2>Сейчас на смене</h2><span class=\"pill\">": "<section class=\"card\"><div class=\"row between\"><h2>במשמרת עכשיו</h2><span class=\"pill\">", "<p class=\"empty\">Никого нет на смене.</p>": "<p class=\"empty\">אף אחד לא במשמרת.</p>", " <span class=\"pill stop\">больше ": " <span class=\"pill stop\">יותר מ־", " ч</span>": " ש׳</span>", " <span class=\"pill warn\">перерыв</span>": " <span class=\"pill warn\">הפסקה</span>", " · с ": " · מ־", "\">Указать конец</button>": "\">לציין סיום</button>", "\">Закрыть</button>": "\">סגירה</button>", "запрос ждёт": "בקשה ממתינה", "запроса ждут": "בקשות ממתינות", "запросов ждут": "בקשות ממתינות", " вашего решения</p><button class=\"btn sm primary\" data-act=\"tab\" data-arg=\"requests\">Открыть</button></div></section>": " להחלטתך</p><button class=\"btn sm primary\" data-act=\"tab\" data-arg=\"requests\">פתיחה</button></div></section>", "Месяц": "חודש", "Неделя": "שבוע", "Период": "תקופה", "С": "מ־", "По": "עד", "<button class=\"btn\" type=\"submit\">Показать</button></form><p class=\"muted small\">Не больше 3 месяцев.</p>": "<button class=\"btn\" type=\"submit\">הצג</button></form><p class=\"muted small\">לא יותר מ־3 חודשים.</p>", "<div class=\"monthnav\"><button class=\"btn sm\" data-act=\"pshift\" data-arg=\"-1\" aria-label=\"Назад\">←</button><strong>": "<div class=\"monthnav\"><button class=\"btn sm\" data-act=\"pshift\" data-arg=\"-1\" aria-label=\"אחורה\">←</button><strong>", "</strong><button class=\"btn sm\" data-act=\"pshift\" data-arg=\"1\" aria-label=\"Вперёд\">→</button></div>": "</strong><button class=\"btn sm\" data-act=\"pshift\" data-arg=\"1\" aria-label=\"קדימה\">→</button></div>", "<div class=\"row\"><div class=\"field\" style=\"flex:1;min-width:180px\"><label>Компания</label><div class=\"dd\"><button class=\"ddbtn\" data-act=\"repPick\">": "<div class=\"row\"><div class=\"field\" style=\"flex:1;min-width:180px\"><label>חברה</label><div class=\"dd\"><button class=\"ddbtn\" data-act=\"repPick\">", "Все компании": "כל החברות", "Все мои компании": "כל החברות שלי", "<button class=\"btn primary\" data-act=\"xlModal\" style=\"align-self:flex-end\">Скачать Excel</button></div>": "<button class=\"btn primary\" data-act=\"xlModal\" style=\"align-self:flex-end\">הורדת Excel</button></div>", "🔓 Открыть месяц для правок": "🔓 לפתוח את החודש לעריכה", "🔒 Закрыть месяц": "🔒 סגירת חודש", "Месяц закрыт: смены и доплаты не меняются.": "החודש סגור: משמרות ותוספות לא משתנות.", "После выплаты закройте месяц, чтобы ничего не поменялось задним числом.": "אחרי התשלום סגרו את החודש, כדי ששום דבר לא ישתנה בדיעבד.", "<section class=\"card\"><h2>Часы и зарплата</h2><p class=\"muted small\">Нажмите на работника, чтобы увидеть смены, доплаты и историю правок.</p><div class=\"tablewrap\"><table><thead><tr><th>Работник</th><th>Часы</th>": "<section class=\"card\"><h2>שעות ושכר</h2><p class=\"muted small\">לחצו על עובד כדי לראות משמרות, תוספות והיסטוריית שינויים.</p><div class=\"tablewrap\"><table><thead><tr><th>עובד</th><th>שעות</th>", "<th>За часы</th>": "<th>על השעות</th>", "<th>Проезд</th>": "<th>נסיעות</th>", "<th>Доплаты / вычеты</th>": "<th>תוספות / ניכויים</th>", "<th>К выплате</th></tr></thead><tbody>": "<th>לתשלום</th></tr></thead><tbody>", "\" class=\"empty\">Нет работников</td></tr>": "\" class=\"empty\">אין עובדים</td></tr>", "<span class=\"muted\">нет ставки</span>": "<span class=\"muted\">אין תעריף</span>", "<tfoot><tr><td>Итого</td><td>": "<tfoot><tr><td>סה״כ</td><td>", "изменил(а) смену": "שינה/תה משמרת", "добавил(а) смену": "הוסיף/ה משמרת", "удалил(а) смену": "מחק/ה משמרת", "закрыл(а) смену": "סגר/ה משמרת", "одобрил(а) запрос": "אישר/ה בקשה", "изменил(а) перерыв": "שינה/תה הפסקה", " (перерыв ": " (הפסקה ", " мин)": " דק׳)", " за ": " עבור ", "<div class=\"row\"><button class=\"btn sm\" data-act=\"repBack\">← Все работники</button></div>": "<div class=\"row\"><button class=\"btn sm\" data-act=\"repBack\">← כל העובדים</button></div>", " ₪/час": " ₪/שעה", "ставка не указана": "לא צוין תעריף", " · проезд ": " · נסיעות ", " ₪/день": " ₪/יום", "<span class=\"pill grey\">🔒 месяц закрыт</span>": "<span class=\"pill grey\">🔒 החודש סגור</span>", "\">Добавить смену</button>": "\">הוספת משמרת</button>", "\">Данные и пароль</button>": "\">פרטים וסיסמה</button>", "\">+ Доплата / вычет</button>": "\">+ תוספת / ניכוי</button>", "\">Открыть как работник</button>": "\">פתיחה כעובד</button>", "\">Открыть как ": "\">פתיחה כ", "главный админ": "מנהל ראשי", "старший": "אחראי", "<div class=\"tiles\"><div class=\"tile\"><span>Часы</span><b>": "<div class=\"tiles\"><div class=\"tile\"><span>שעות</span><b>", "</b></div><div class=\"tile\"><span>Сверхурочно</span><b>": "</b></div><div class=\"tile\"><span>שעות נוספות</span><b>", "</b></div><div class=\"tile\"><span>К выплате</span><b>": "</b></div><div class=\"tile\"><span>לתשלום</span><b>", "<div class=\"paylines small\"><span>За часы: <b>": "<div class=\"paylines small\"><span>על השעות: <b>", "<span>Проезд (": "<span>נסיעות (", " дн.): <b>": " ימים): <b>", "<span>Доплаты: <b>+": "<span>תוספות: <b>+", "<span>Вычеты: <b>−": "<span>ניכויים: <b>−", "<section class=\"card\"><h2>Доплаты и вычеты</h2>": "<section class=\"card\"><h2>תוספות וניכויים</h2>", "\" aria-label=\"Удалить\">✕</button>": "\" aria-label=\"מחיקה\">✕</button>", "<section class=\"card\"><h2>Смены</h2>": "<section class=\"card\"><h2>משמרות</h2>", "<p class=\"empty\">За этот период смен нет.</p>": "<p class=\"empty\">אין משמרות בתקופה זו.</p>", "праздник": "חג", "идёт": "בתהליך", " <span class=\"muted small\">· перерыв ": " <span class=\"muted small\">· הפסקה ", " мин</span>": " דק׳</span>", " <span class=\"pill grey\">исправлено</span>": " <span class=\"pill grey\">תוקן</span>", "\">Изменить</button>": "\">עריכה</button>", "<section class=\"card\"><h2>История изменений</h2>": "<section class=\"card\"><h2>היסטוריית שינויים</h2>", "<p class=\"empty\">Правок за этот период не было.</p>": "<p class=\"empty\">לא היו שינויים בתקופה זו.</p>", "Просит добавить смену": "מבקש/ת להוסיף משמרת", "Просит исправить смену": "מבקש/ת לתקן משמרת", "<div class=\"small muted tnum\">Было: ": "<div class=\"small muted tnum\">היה: ", "<div class=\"small tnum\"><b>Стало: ": "<div class=\"small tnum\"><b>יהיה: ", "\">Одобрить</button><button class=\"btn sm danger\" data-act=\"reject\" data-arg=\"": "\">אישור</button><button class=\"btn sm danger\" data-act=\"reject\" data-arg=\"", "\">Отклонить</button></div>": "\">דחייה</button></div>", "<section class=\"card\"><h2>Ждут решения</h2>": "<section class=\"card\"><h2>ממתינות להחלטה</h2>", "<p class=\"empty\">Новых запросов нет.</p>": "<p class=\"empty\">אין בקשות חדשות.</p>", "<section class=\"card\"><h2>История</h2>": "<section class=\"card\"><h2>היסטוריה</h2>", "<div class=\"row between\"><p class=\"muted small\">Работники регистрируются сами или вы добавляете их здесь.</p><button class=\"btn primary\" data-act=\"workerForm\">+ Работник</button></div>": "<div class=\"row between\"><p class=\"muted small\">העובדים נרשמים בעצמם או שאתם מוסיפים אותם כאן.</p><button class=\"btn primary\" data-act=\"workerForm\">+ עובד</button></div>", "<section class=\"card\" style=\"border-color:var(--warn)\"><div class=\"row between\"><h2>Новые регистрации</h2><span class=\"pill warn\">": "<section class=\"card\" style=\"border-color:var(--warn)\"><div class=\"row between\"><h2>הרשמות חדשות</h2><span class=\"pill warn\">", "\">Принять</button><button class=\"btn sm danger\" data-act=\"regReject\" data-arg=\"": "\">קבלה</button><button class=\"btn sm danger\" data-act=\"regReject\" data-arg=\"", "<p class=\"empty\">Пока нет работников</p>": "<p class=\"empty\">עדיין אין עובדים</p>", "<section class=\"card\"><h2>Без компании</h2>": "<section class=\"card\"><h2>ללא חברה</h2>", "<p class=\"empty\">Сначала добавьте компанию.</p>": "<p class=\"empty\">קודם הוסיפו חברה.</p>", " <span class=\"pill stop\">не работает</span>": " <span class=\"pill stop\">לא עובד</span>", " <span class=\"pill stop\">отклонён</span>": " <span class=\"pill stop\">נדחה</span>", "без ставки": "ללא תעריף", "проезд ": "נסיעות ", "\">Табель</button>": "\">דוח</button>", "все компании": "כל החברות", "<section class=\"card\"><div class=\"row between\"><h2>Праздники и особые дни</h2><span class=\"pill grey\">": "<section class=\"card\"><div class=\"row between\"><h2>חגים וימים מיוחדים</h2><span class=\"pill grey\">", "<p class=\"muted small\">Отметьте день, за который платят больше: название и процент оплаты. Можно выбрать, к каким компаниям он относится.</p>": "<p class=\"muted small\">סמנו יום שמשלמים עליו יותר: שם ואחוז תשלום. אפשר לבחור לאילו חברות הוא שייך.</p>", "<div class=\"row\"><button class=\"btn sm primary\" data-act=\"holAdd\">+ Добавить день</button>": "<div class=\"row\"><button class=\"btn sm primary\" data-act=\"holAdd\">+ הוספת יום</button>", "<button class=\"btn sm ghost danger\" data-act=\"holClear\">Удалить все</button>": "<button class=\"btn sm ghost danger\" data-act=\"holClear\">מחיקת הכול</button>", "Праздник": "חג", "ставка кануна": "תעריף ערב חג", "ставка праздника": "תעריף חג", "\" aria-label=\"Удалить\">✕</button></div>": "\" aria-label=\"מחיקה\">✕</button></div>", "<p class=\"empty\">Пока нет отмеченных дней.</p>": "<p class=\"empty\">עדיין אין ימים מסומנים.</p>", "Только ближайшие": "רק הקרובים", "Показать все (": "הצג הכול (", "<div class=\"row between\"><p class=\"muted small\">У каждой компании свои правила переработок, доплат и объекты.</p>": "<div class=\"row between\"><p class=\"muted small\">לכל חברה כללים משלה לשעות נוספות, תוספות ואתרים.</p>", "<button class=\"btn primary\" data-act=\"companyForm\">+ Компания</button>": "<button class=\"btn primary\" data-act=\"companyForm\">+ חברה</button>", "<section class=\"card\"><h2>Ваши компании</h2><p class=\"small\">Добавить одним нажатием: ": "<section class=\"card\"><h2>החברות שלך</h2><p class=\"small\">הוספה בלחיצה אחת: ", "неделя": "שבוע", "месяц": "חודש", ".</p><p class=\"muted small\">Уже существующие компании с таким названием пропускаются. Правила переработок потом можно поправить в «Изменить».</p><div class=\"row\"><button class=\"btn primary\" data-act=\"presetAdd\">Добавить ": ".</p><p class=\"muted small\">חברות שכבר קיימות באותו שם ידולגו. את כללי השעות הנוספות אפשר לתקן אחר כך ב«עריכה».</p><div class=\"row\"><button class=\"btn primary\" data-act=\"presetAdd\">הוספת ", "компанию": "חברה", "компании": "חברות", "компаний": "חברות", "<p class=\"empty\">Компаний пока нет.</p>": "<p class=\"empty\">עדיין אין חברות.</p>", "\">Объекты</button><button class=\"btn sm\" data-act=\"companyForm\" data-arg=\"": "\">אתרים</button><button class=\"btn sm\" data-act=\"companyForm\" data-arg=\"", "\">Изменить</button></div>": "\">עריכה</button></div>", "<p class=\"small\"><b>Зарплата:</b> ": "<p class=\"small\"><b>שכר:</b> ", "каждую неделю (недельный и месячный отчёт)": "כל שבוע (דוח שבועי וחודשי)", "раз в месяц": "פעם בחודש", " · отчёт ": " · דוח ", "на иврите": "בעברית", "на русском": "ברוסית", "<p class=\"small\"><b>Старшие:</b> ": "<p class=\"small\"><b>אחראים:</b> ", "<span class=\"muted\">не назначены</span>": "<span class=\"muted\">לא מונו</span>", "<p class=\"small\"><b>Объекты:</b> ": "<p class=\"small\"><b>אתרים:</b> ", "<span class=\"muted\">не добавлены</span>": "<span class=\"muted\">לא נוספו</span>", "<p class=\"small\">Норма ": "<p class=\"small\">תקן ", " ч в день, дальше ": " ש׳ ביום, אחר כך ", " ч по ": " ש׳ ב־", "%, потом ": "%, אחר כך ", "Доплата по дням: ": "תוספת לפי ימים: ", "Все дни по 100%.": "כל הימים 100%.", " Перерыв ": " הפסקה ", " мин вычитается из смен длиннее 6 ч, если работник не отмечал перерыв.": " דק׳ מנוכה ממשמרות מעל 6 ש׳, אם העובד לא סימן הפסקה.", "работник": "עובד", "работника": "עובדים", "работников": "עובדים", " · смена считается забытой после ": " · משמרת נחשבת נשכחת אחרי ", " ч</p></section>": " ש׳</p></section>", "Отмена": "ביטול", "Компания": "חברה", "Новая компания": "חברה חדשה", "Название": "שם", "Зарплата": "שכר", ">Раз в месяц</option><option value=\"week\"": ">פעם בחודש</option><option value=\"week\"", ">Каждую неделю</option></select>": ">כל שבוע</option></select>", "Язык отчёта Excel": "שפת דוח Excel", ">Русский</option><option value=\"he\"": ">רוסית</option><option value=\"he\"", "Обычных часов в день": "שעות רגילות ביום", "Авто-перерыв, мин (смены > 6 ч)": "הפסקה אוטומטית, דק׳ (משמרות > 6 ש׳)", "Первые часы переработки": "שעות נוספות ראשונות", "…оплата, %": "…תשלום, %", "Дальше переработка, %": "שעות נוספות אחר כך, %", "Смена «забыта» после, ч": "משמרת «נשכחה» אחרי, ש׳", "<div class=\"field\"><label>Оплата по дням недели, %</label><div class=\"grid7\">": "<div class=\"field\"><label>תשלום לפי ימי השבוע, %</label><div class=\"grid7\">", "<p class=\"muted small\">Если день, праздник и переработка дают разный процент, берётся больший. Праздники отмечаются внизу вкладки «Компании».</p></div>": "<p class=\"muted small\">אם היום, החג והשעות הנוספות נותנים אחוזים שונים, נלקח הגבוה. חגים מסומנים בתחתית לשונית «חברות».</p></div>", "Сохранить": "שמירה", "\">Удалить</button>": "\">מחיקה</button>", "<h2>Объекты · ": "<h2>אתרים · ", "</h2><p class=\"muted small\">Работник выбирает объект при начале смены. Если задать место, вы увидите, отметился ли он рядом с объектом. Чтобы задать место, нажмите 📍, находясь на объекте.</p>": "</h2><p class=\"muted small\">העובד בוחר אתר בתחילת המשמרת. אם תגדירו מיקום, תראו אם הוא נרשם ליד האתר. כדי להגדיר מיקום, לחצו 📍 כשאתם באתר.</p>", "Радиус, м": "רדיוס, מ׳", "Обновить место": "עדכון מיקום", "Задать место здесь": "להגדיר מיקום כאן", "\">Удалить</button></div>": "\">מחיקה</button></div>", "\" target=\"_blank\" rel=\"noopener\">Место задано · открыть на карте</a>": "\" target=\"_blank\" rel=\"noopener\">המיקום הוגדר · פתיחה במפה</a>", "<span class=\"muted small\">Место не задано</span>": "<span class=\"muted small\">המיקום לא הוגדר</span>", "<p class=\"empty\">Объектов пока нет.</p>": "<p class=\"empty\">עדיין אין אתרים.</p>", "<button class=\"btn\" type=\"button\" data-act=\"siteNew\">+ Добавить объект</button>": "<button class=\"btn\" type=\"button\" data-act=\"siteNew\">+ הוספת אתר</button>", "<h2>Праздник / особый день</h2>": "<h2>חג / יום מיוחד</h2>", "Дата": "תאריך", "<input id=\"hn\" name=\"name\" placeholder=\"Например: Песах\">": "<input id=\"hn\" name=\"name\" placeholder=\"לדוגמה: פסח\">", "Оплата за этот день, %": "תשלום ליום זה, %", "<div class=\"field\"><label>Для каких компаний</label>": "<div class=\"field\"><label>לאילו חברות</label>", "<p class=\"muted small\">Если в этот день и так платят больше (например, суббота 150% или переработка), берётся больший процент.</p>": "<p class=\"muted small\">אם ביום הזה ממילא משלמים יותר (למשל שבת 150% או שעות נוספות), נלקח האחוז הגבוה.</p>", "Добавить": "הוספה", "Сначала добавьте компанию": "קודם הוסיפו חברה", "<fieldset style=\"border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;margin:0\"><legend style=\"font-weight:600;padding:0 4px\">Права</legend>": "<fieldset style=\"border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;margin:0\"><legend style=\"font-weight:600;padding:0 4px\">הרשאות</legend>", "Работник": "עובד", "отмечает своё время": "מדווח את השעות שלו", "Старший": "אחראי", "управляет выбранными компаниями": "מנהל את החברות שנבחרו", "Главный админ": "מנהל ראשי", "видит всё, как вы": "רואה הכול, כמוך", "><label>Компании старшего</label>": "><label>החברות של האחראי</label>", "Новый работник": "עובד חדש", "Имя и фамилия": "שם מלא", "Телефон": "טלפון", "Пароль для входа (минимум 6 символов)": "סיסמת כניסה (לפחות 6 תווים)", "<p class=\"muted small\">ID присвоится автоматически. Сообщите работнику ID и пароль.</p>": "<p class=\"muted small\">המספר המזהה יוקצה אוטומטית. מסרו לעובד את המספר והסיסמה.</p>", "\">Отправить письмо для смены пароля</button></div>": "\">שליחת מייל לשינוי סיסמה</button></div>", "<p class=\"muted small\">Работник входит по телефону. Восстановить забытый пароль можно только через email, поэтому лучше попросить его указать email.</p>": "<p class=\"muted small\">העובד נכנס עם הטלפון. סיסמה שנשכחה אפשר לשחזר רק דרך מייל, לכן עדיף לבקש ממנו להוסיף מייל.</p>", "Ставка, ₪ в час": "תעריף, ₪ לשעה", "Проезд, ₪ за рабочий день": "נסיעות, ₪ ליום עבודה", "> Работает сейчас": "> עובד כעת", " (регистрация будет принята)": " (ההרשמה תאושר)", "Изменить смену": "עריכת משמרת", "Добавить смену": "הוספת משמרת", "Начало": "התחלה", "Конец (пусто — смена ещё идёт)": "סיום (ריק — המשמרת עדיין נמשכת)", "Перерывы, мин": "הפסקות, דק׳", "Объект": "אתר", "<p class=\"muted small\">Все изменения попадают в историю правок.</p><p class=\"err\" id=\"serr\"></p>": "<p class=\"muted small\">כל השינויים נשמרים בהיסטוריית השינויים.</p><p class=\"err\" id=\"serr\"></p>", "<h2>Доплата или вычет</h2><p class=\"muted\">": "<h2>תוספת או ניכוי</h2><p class=\"muted\">", "Тип": "סוג", " (вычитается)": " (מנוכה)", " (прибавляется)": " (מתווסף)", "Сумма, ₪": "סכום, ₪", "Комментарий": "הערה", "<input id=\"an\" name=\"note\" placeholder=\"Например: премия за ноябрь\">": "<input id=\"an\" name=\"note\" placeholder=\"לדוגמה: בונוס לנובמבר\">", "Имя": "שם", "Ставка ₪/ч": "תעריף ₪/ש׳", "Часы всего": "סה״כ שעות", "Часы ": "שעות ", "Сверхурочно": "שעות נוספות", "За часы ₪": "על השעות ₪", "Рабочих дней": "ימי עבודה", "Проезд ₪": "נסיעות ₪", "Доплаты ₪": "תוספות ₪", "Вычеты ₪": "ניכויים ₪", "К выплате ₪": "לתשלום ₪", "Смены по дням": "משמרות לפי ימים", "День": "יום", "Конец": "סיום", "Перерыв, мин": "הפסקה, דק׳", "Часы за день": "שעות ביום", "Сумма за день ₪": "סכום ליום ₪", "Место начала": "מיקום התחלה", "Место конца": "מיקום סיום", "далеко ": "רחוק ", "Доплаты и вычеты": "תוספות וניכויים", "Сумма ₪": "סכום ₪", "Отчёт для Excel": "דוח ל־Excel", "<h2>Данные для Excel</h2><p class=\"muted small\">Скачивание здесь не сработало. Нажмите «Копировать» и вставьте в Excel или Google Таблицы.</p><textarea id=\"csvbox\" rows=\"8\" readonly>": "<h2>נתונים ל־Excel</h2><p class=\"muted small\">ההורדה כאן לא עבדה. לחצו «העתקה» והדביקו ב־Excel או ב־Google Sheets.</p><textarea id=\"csvbox\" rows=\"8\" readonly>", "</textarea><div class=\"row\"><button class=\"btn primary\" data-act=\"copyCsv\">Копировать</button><button class=\"btn\" data-act=\"closeModal\">Закрыть</button></div>": "</textarea><div class=\"row\"><button class=\"btn primary\" data-act=\"copyCsv\">העתקה</button><button class=\"btn\" data-act=\"closeModal\">סגירה</button></div>", "Нет компаний": "אין חברות", "<h2>Скачать Excel · ": "<h2>הורדת Excel · ", "</h2><p class=\"muted small\">Период — тот, что выбран вверху отчёта. <b>Отчёт</b> — сводка + лист на каждого работника (у недельных компаний ещё лист «По неделям»). <b>Недели</b> — сетка вход / выход / часы.</p>": "</h2><p class=\"muted small\">התקופה היא זו שנבחרה בראש הדוח. <b>דוח</b> — סיכום + גיליון לכל עובד (לחברות שבועיות גם גיליון «לפי שבועות»). <b>שבועות</b> — טבלת כניסה / יציאה / שעות.</p>", "<button class=\"btn big primary\" data-act=\"xl\" data-arg=\"companies:\">📊 Сводка по всем компаниям</button>": "<button class=\"btn big primary\" data-act=\"xl\" data-arg=\"companies:\">📊 סיכום כל החברות</button>", "зарплата каждую неделю": "שכר כל שבוע", "зарплата раз в месяц": "שכר פעם בחודש", "\">Отчёт</button><button class=\"btn sm\" data-act=\"xl\" data-arg=\"week:": "\">דוח</button><button class=\"btn sm\" data-act=\"xl\" data-arg=\"week:", "\">Недели</button></div>": "\">שבועות</button></div>", "<div class=\"row\"><button class=\"btn sm ghost\" data-act=\"export\">Все смены подробно (CSV)</button><div style=\"flex:1\"></div><button class=\"btn\" data-act=\"closeModal\">Закрыть</button></div>": "<div class=\"row\"><button class=\"btn sm ghost\" data-act=\"export\">כל המשמרות בפירוט (CSV)</button><div style=\"flex:1\"></div><button class=\"btn\" data-act=\"closeModal\">סגירה</button></div>", "Готовим файл…": "מכינים את הקובץ…", "За этот период у ": "בתקופה זו אין משמרות ל־", " нет смен": "", "Не удалось сохранить файл. Попробуйте на компьютере.": "לא הצלחנו לשמור את הקובץ. נסו במחשב.", "Не получилось сделать Excel: ": "לא הצלחנו ליצור Excel: ", "Этот месяц закрыт. Сначала откройте его в отчёте.": "החודש הזה סגור. קודם פתחו אותו בדוח.", "Письмо отправлено на ": "המייל נשלח אל ", "Закрыть смену ": "לסגור את המשמרת של ", " текущим временем?": " בשעה הנוכחית?", "Закрыть": "סגירה", "Смена закрыта": "המשמרת נסגרה", "Одобрено, время обновлено": "אושר, הזמן עודכן", "Запрос отклонён": "הבקשה נדחתה", "Удалить эту смену?": "למחוק את המשמרת?", "Удалить": "מחיקה", "Смена удалена": "המשמרת נמחקה", "Удалить эту доплату/вычет?": "למחוק את התוספת/הניכוי?", "Удалено": "נמחק", "Сначала переведите или удалите работников этой компании (": "קודם העבירו או מחקו את העובדים של החברה (", "Удалить компанию «": "למחוק את החברה «", "Компания удалена": "החברה נמחקה", "Объект ": "אתר ", "Определяем место…": "מאתרים מיקום…", "Не удалось определить место. Разрешите геолокацию для браузера.": "לא הצלחנו לקבוע מיקום. אפשרו מיקום לדפדפן.", "Место объекта задано (точность ~": "מיקום האתר הוגדר (דיוק ~", " м)": " מ׳)", "Удалить все праздники из списка?": "למחוק את כל החגים מהרשימה?", "Удалить все": "מחיקת הכול", "Список праздников очищен": "רשימת החגים נוקתה", "Месяц закрыт": "החודש נסגר", "Месяц открыт для правок": "החודש נפתח לעריכה", "Закрыть ": "לסגור את ", " для всех компаний": " לכל החברות", " для «": " עבור «", "? Смены, запросы и доплаты за этот месяц больше нельзя будет менять.": "? משמרות, בקשות ותוספות לחודש זה כבר לא יהיה אפשר לשנות.", "Закрыть месяц": "סגירת חודש", "Отклонить регистрацию ": "לדחות את ההרשמה של ", "Отклонить": "דחייה", "Регистрация отклонена": "ההרשמה נדחתה", "Добавлено компаний: ": "נוספו חברות: ", "Скопировано, вставьте в Excel": "הועתק, הדביקו ב־Excel", "Сохранено": "נשמר", "У каждого объекта должно быть название": "לכל אתר צריך להיות שם", "Объекты сохранены": "האתרים נשמרו", "Выберите хотя бы одну компанию": "בחרו לפחות חברה אחת", "Добавлено": "נוסף", "Укажите сумму больше нуля": "הזינו סכום גדול מאפס", "Укажите дату": "הזינו תאריך", "Этот месяц закрыт": "החודש הזה סגור", "Проверьте номер телефона": "בדקו את מספר הטלפון", "Этот телефон уже есть у другого работника": "הטלפון הזה כבר שייך לעובד אחר", "Отметьте компании, которыми управляет старший": "סמנו את החברות שהאחראי מנהל", "Пароль: минимум 6 символов": "סיסמה: לפחות 6 תווים", "Укажите телефон или email": "הזינו טלפון או מייל", "Этот телефон уже зарегистрирован": "הטלפון הזה כבר רשום", "Этот email уже зарегистрирован": "המייל הזה כבר רשום", "Не удалось создать вход: ": "לא הצלחנו ליצור כניסה: ", "<h2>Работник добавлен</h2><p>ID для входа: <b class=\"tnum\" style=\"font-size:22px\">": "<h2>העובד נוסף</h2><p>מספר לכניסה: <b class=\"tnum\" style=\"font-size:22px\">", "</b></p><p class=\"muted\">Сообщите ему ID (или телефон/email) и пароль.</p><button class=\"btn primary\" data-act=\"closeModal\">Понятно</button>": "</b></p><p class=\"muted\">מסרו לו את המספר (או טלפון/מייל) ואת הסיסמה.</p><button class=\"btn primary\" data-act=\"closeModal\">הבנתי</button>", "Укажите начало": "הזינו התחלה", "Смена изменена": "המשמרת עודכנה", "Смена добавлена": "המשמרת נוספה", "\" target=\"_blank\" rel=\"noopener\">ссылка</a>": "\" target=\"_blank\" rel=\"noopener\">קישור</a>", "Ошибка загрузки данных: ": "שגיאה בטעינת הנתונים: ", "Не удалось сохранить профиль: ": "לא הצלחנו לשמור את הפרופיל: ", "Ошибка загрузки профиля: ": "שגיאה בטעינת הפרופיל: ", "Не удалось загрузить сайт. Проверьте интернет и обновите страницу.": "לא הצלחנו לטעון את האתר. בדקו את האינטרנט ורעננו את הדף.", "Ошибка загрузки: ": "שגיאה בטעינה: "}, "en": {"Язык": "Language", " <span class=\"pill\">главный админ</span>": "<span class=\"pill\">main admin</span>", " <span class=\"pill\">старший</span>": "<span class=\"pill\">supervisor</span>", "Без компании": "No company", "<button class=\"btn ghost\" data-act=\"backAdmin\">← Выйти из просмотра</button>": "<button class=\"btn ghost\" data-act=\"backAdmin\">← Exit preview</button>", "<button class=\"btn ghost\" data-act=\"myTable\">Мой табель</button>": "<button class=\"btn ghost\" data-act=\"myTable\">My timesheet</button>", "Выйти": "Log out", "<span class=\"pill warn\">Демо: данные не сохраняются</span>": "<span class=\"pill warn\">Demo: data is not saved</span>", "<div class=\"banner\">Демо-режим: сайт не подключён к базе. Вход: <b>admin@demo.ru</b> / <b>123456</b>.</div>": "<div class=\"banner\">Demo mode: the site is not connected to a database. Login: <b>admin@demo.ru</b> / <b>123456</b>.</div>", "<div class=\"banner\">Вы смотрите приложение глазами работника. Кнопки работают по-настоящему.</div>": "<div class=\"banner\">You are viewing the app as the worker. Buttons really work.</div>", "Главный администратор": "Main administrator", "Администратор всех компаний": "Administrator of all companies", "Старший · ": "Supervisor · ", "компании не назначены": "no companies assigned", "Доброй ночи": "Good night", "Доброе утро": "Good morning", "Добрый день": "Good afternoon", "Добрый вечер": "Good evening", "<button class=\"btn sm\" data-act=\"myTable\">Мой табель</button>": "<button class=\"btn sm\" data-act=\"myTable\">My timesheet</button>", "<button class=\"btn sm ghost\" data-act=\"logout\">Выйти</button></div></section>": "<button class=\"btn sm ghost\" data-act=\"logout\">Log out</button></div></section>", "смена открыта": "shift has been open", "смены открыты": "shifts have been open", "смен открыты": "shifts have been open", " слишком долго.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"now\">Посмотреть</button></div>": " too long.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"now\">View</button></div>", "<div class=\"banner\">Начните с компаний: добавьте их, потом работников.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"companies\">Перейти</button></div>": "<div class=\"banner\">Start with companies: add them, then workers.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"companies\">Go</button></div>", "Зарплаты · ": "Pay · ", " ч · нажмите, чтобы открыть отчёт": " h · tap to open the report", "Сейчас на смене": "On shift now", "забытых: ": "forgotten: ", "Запросы на правку": "Edit requests", "ждут ответа": "awaiting reply", "всё разобрано": "all handled", "Работники": "Workers", "новых заявок: ": "new sign-ups: ", "Компании": "Companies", "Главная": "Home", "Сейчас": "Now", "Отчёт": "Report", "Запросы": "Requests", "<h1>Админ-панель</h1>": "<h1>Admin panel</h1>", "<p class=\"muted small\">Ваши компании: ": "<p class=\"muted small\">Your companies: ", "не назначены": "not assigned", "<div class=\"banner\">Начните с вкладки «Компании»: добавьте свои компании, потом работников.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"companies\">Перейти</button></div>": "<div class=\"banner\">Start with the «Companies» tab: add your companies, then workers.<button class=\"btn sm\" data-act=\"tab\" data-arg=\"companies\">Go</button></div>", "начало": "start", "конец": "end", ": без места</span>": ": no location</span>", "на объекте": "on site", "далеко, ": "far, ", " слишком долго — похоже, забыли нажать «Закончить».</div>": " too long — probably forgot to press «Finish».</div>", "<section class=\"card\"><div class=\"row between\"><h2>Сейчас на смене</h2><span class=\"pill\">": "<section class=\"card\"><div class=\"row between\"><h2>On shift now</h2><span class=\"pill\">", "<p class=\"empty\">Никого нет на смене.</p>": "<p class=\"empty\">Nobody is on shift.</p>", " <span class=\"pill stop\">больше ": " <span class=\"pill stop\">over ", " ч</span>": " h</span>", " <span class=\"pill warn\">перерыв</span>": " <span class=\"pill warn\">break</span>", " · с ": " · since ", "\">Указать конец</button>": "\">Set end</button>", "\">Закрыть</button>": "\">Close</button>", "запрос ждёт": "request awaits", "запроса ждут": "requests await", "запросов ждут": "requests await", " вашего решения</p><button class=\"btn sm primary\" data-act=\"tab\" data-arg=\"requests\">Открыть</button></div></section>": " your decision</p><button class=\"btn sm primary\" data-act=\"tab\" data-arg=\"requests\">Open</button></div></section>", "Месяц": "Month", "Неделя": "Week", "Период": "Period", "С": "From", "По": "To", "<button class=\"btn\" type=\"submit\">Показать</button></form><p class=\"muted small\">Не больше 3 месяцев.</p>": "<button class=\"btn\" type=\"submit\">Show</button></form><p class=\"muted small\">No more than 3 months.</p>", "<div class=\"monthnav\"><button class=\"btn sm\" data-act=\"pshift\" data-arg=\"-1\" aria-label=\"Назад\">←</button><strong>": "<div class=\"monthnav\"><button class=\"btn sm\" data-act=\"pshift\" data-arg=\"-1\" aria-label=\"Back\">←</button><strong>", "</strong><button class=\"btn sm\" data-act=\"pshift\" data-arg=\"1\" aria-label=\"Вперёд\">→</button></div>": "</strong><button class=\"btn sm\" data-act=\"pshift\" data-arg=\"1\" aria-label=\"Forward\">→</button></div>", "<div class=\"row\"><div class=\"field\" style=\"flex:1;min-width:180px\"><label>Компания</label><div class=\"dd\"><button class=\"ddbtn\" data-act=\"repPick\">": "<div class=\"row\"><div class=\"field\" style=\"flex:1;min-width:180px\"><label>Company</label><div class=\"dd\"><button class=\"ddbtn\" data-act=\"repPick\">", "Все компании": "All companies", "Все мои компании": "All my companies", "<button class=\"btn primary\" data-act=\"xlModal\" style=\"align-self:flex-end\">Скачать Excel</button></div>": "<button class=\"btn primary\" data-act=\"xlModal\" style=\"align-self:flex-end\">Download Excel</button></div>", "🔓 Открыть месяц для правок": "🔓 Reopen month for edits", "🔒 Закрыть месяц": "🔒 Close month", "Месяц закрыт: смены и доплаты не меняются.": "Month is closed: shifts and extras can't change.", "После выплаты закройте месяц, чтобы ничего не поменялось задним числом.": "After paying, close the month so nothing changes retroactively.", "<section class=\"card\"><h2>Часы и зарплата</h2><p class=\"muted small\">Нажмите на работника, чтобы увидеть смены, доплаты и историю правок.</p><div class=\"tablewrap\"><table><thead><tr><th>Работник</th><th>Часы</th>": "<section class=\"card\"><h2>Hours and pay</h2><p class=\"muted small\">Tap a worker to see shifts, extras and edit history.</p><div class=\"tablewrap\"><table><thead><tr><th>Worker</th><th>Hours</th>", "<th>За часы</th>": "<th>For hours</th>", "<th>Проезд</th>": "<th>Travel</th>", "<th>Доплаты / вычеты</th>": "<th>Extras / deductions</th>", "<th>К выплате</th></tr></thead><tbody>": "<th>To pay</th></tr></thead><tbody>", "\" class=\"empty\">Нет работников</td></tr>": "\" class=\"empty\">No workers</td></tr>", "<span class=\"muted\">нет ставки</span>": "<span class=\"muted\">no rate</span>", "<tfoot><tr><td>Итого</td><td>": "<tfoot><tr><td>Total</td><td>", "изменил(а) смену": "edited a shift", "добавил(а) смену": "added a shift", "удалил(а) смену": "deleted a shift", "закрыл(а) смену": "closed a shift", "одобрил(а) запрос": "approved a request", "изменил(а) перерыв": "edited a break", " (перерыв ": " (break ", " мин)": " min)", " за ": " for ", "<div class=\"row\"><button class=\"btn sm\" data-act=\"repBack\">← Все работники</button></div>": "<div class=\"row\"><button class=\"btn sm\" data-act=\"repBack\">← All workers</button></div>", " ₪/час": " ₪/hour", "ставка не указана": "no rate set", " · проезд ": " · travel ", " ₪/день": " ₪/day", "<span class=\"pill grey\">🔒 месяц закрыт</span>": "<span class=\"pill grey\">🔒 month closed</span>", "\">Добавить смену</button>": "\">Add shift</button>", "\">Данные и пароль</button>": "\">Details & password</button>", "\">+ Доплата / вычет</button>": "\">+ Extra / deduction</button>", "\">Открыть как работник</button>": "\">Open as worker</button>", "\">Открыть как ": "\">Open as ", "главный админ": "main admin", "старший": "supervisor", "<div class=\"tiles\"><div class=\"tile\"><span>Часы</span><b>": "<div class=\"tiles\"><div class=\"tile\"><span>Hours</span><b>", "</b></div><div class=\"tile\"><span>Сверхурочно</span><b>": "</b></div><div class=\"tile\"><span>Overtime</span><b>", "</b></div><div class=\"tile\"><span>К выплате</span><b>": "</b></div><div class=\"tile\"><span>To pay</span><b>", "<div class=\"paylines small\"><span>За часы: <b>": "<div class=\"paylines small\"><span>For hours: <b>", "<span>Проезд (": "<span>Travel (", " дн.): <b>": " days): <b>", "<span>Доплаты: <b>+": "<span>Extras: <b>+", "<span>Вычеты: <b>−": "<span>Deductions: <b>−", "<section class=\"card\"><h2>Доплаты и вычеты</h2>": "<section class=\"card\"><h2>Extras and deductions</h2>", "\" aria-label=\"Удалить\">✕</button>": "\" aria-label=\"Delete\">✕</button>", "<section class=\"card\"><h2>Смены</h2>": "<section class=\"card\"><h2>Shifts</h2>", "<p class=\"empty\">За этот период смен нет.</p>": "<p class=\"empty\">No shifts in this period.</p>", "праздник": "holiday", "идёт": "ongoing", " <span class=\"muted small\">· перерыв ": " <span class=\"muted small\">· break ", " мин</span>": " min</span>", " <span class=\"pill grey\">исправлено</span>": " <span class=\"pill grey\">edited</span>", "\">Изменить</button>": "\">Edit</button>", "<section class=\"card\"><h2>История изменений</h2>": "<section class=\"card\"><h2>Change history</h2>", "<p class=\"empty\">Правок за этот период не было.</p>": "<p class=\"empty\">No edits in this period.</p>", "Просит добавить смену": "Asks to add a shift", "Просит исправить смену": "Asks to fix a shift", "<div class=\"small muted tnum\">Было: ": "<div class=\"small muted tnum\">Was: ", "<div class=\"small tnum\"><b>Стало: ": "<div class=\"small tnum\"><b>Will be: ", "\">Одобрить</button><button class=\"btn sm danger\" data-act=\"reject\" data-arg=\"": "\">Approve</button><button class=\"btn sm danger\" data-act=\"reject\" data-arg=\"", "\">Отклонить</button></div>": "\">Reject</button></div>", "<section class=\"card\"><h2>Ждут решения</h2>": "<section class=\"card\"><h2>Awaiting decision</h2>", "<p class=\"empty\">Новых запросов нет.</p>": "<p class=\"empty\">No new requests.</p>", "<section class=\"card\"><h2>История</h2>": "<section class=\"card\"><h2>History</h2>", "<div class=\"row between\"><p class=\"muted small\">Работники регистрируются сами или вы добавляете их здесь.</p><button class=\"btn primary\" data-act=\"workerForm\">+ Работник</button></div>": "<div class=\"row between\"><p class=\"muted small\">Workers sign up themselves or you add them here.</p><button class=\"btn primary\" data-act=\"workerForm\">+ Worker</button></div>", "<section class=\"card\" style=\"border-color:var(--warn)\"><div class=\"row between\"><h2>Новые регистрации</h2><span class=\"pill warn\">": "<section class=\"card\" style=\"border-color:var(--warn)\"><div class=\"row between\"><h2>New sign-ups</h2><span class=\"pill warn\">", "\">Принять</button><button class=\"btn sm danger\" data-act=\"regReject\" data-arg=\"": "\">Accept</button><button class=\"btn sm danger\" data-act=\"regReject\" data-arg=\"", "<p class=\"empty\">Пока нет работников</p>": "<p class=\"empty\">No workers yet</p>", "<section class=\"card\"><h2>Без компании</h2>": "<section class=\"card\"><h2>No company</h2>", "<p class=\"empty\">Сначала добавьте компанию.</p>": "<p class=\"empty\">Add a company first.</p>", " <span class=\"pill stop\">не работает</span>": " <span class=\"pill stop\">inactive</span>", " <span class=\"pill stop\">отклонён</span>": " <span class=\"pill stop\">rejected</span>", "без ставки": "no rate", "проезд ": "travel ", "\">Табель</button>": "\">Timesheet</button>", "все компании": "all companies", "<section class=\"card\"><div class=\"row between\"><h2>Праздники и особые дни</h2><span class=\"pill grey\">": "<section class=\"card\"><div class=\"row between\"><h2>Holidays and special days</h2><span class=\"pill grey\">", "<p class=\"muted small\">Отметьте день, за который платят больше: название и процент оплаты. Можно выбрать, к каким компаниям он относится.</p>": "<p class=\"muted small\">Mark a day that pays more: a name and a pay percentage. You can choose which companies it applies to.</p>", "<div class=\"row\"><button class=\"btn sm primary\" data-act=\"holAdd\">+ Добавить день</button>": "<div class=\"row\"><button class=\"btn sm primary\" data-act=\"holAdd\">+ Add day</button>", "<button class=\"btn sm ghost danger\" data-act=\"holClear\">Удалить все</button>": "<button class=\"btn sm ghost danger\" data-act=\"holClear\">Delete all</button>", "Праздник": "Holiday", "ставка кануна": "holiday-eve rate", "ставка праздника": "holiday rate", "\" aria-label=\"Удалить\">✕</button></div>": "\" aria-label=\"Delete\">✕</button></div>", "<p class=\"empty\">Пока нет отмеченных дней.</p>": "<p class=\"empty\">No marked days yet.</p>", "Только ближайшие": "Upcoming only", "Показать все (": "Show all (", "<div class=\"row between\"><p class=\"muted small\">У каждой компании свои правила переработок, доплат и объекты.</p>": "<div class=\"row between\"><p class=\"muted small\">Each company has its own overtime rules, extras and sites.</p>", "<button class=\"btn primary\" data-act=\"companyForm\">+ Компания</button>": "<button class=\"btn primary\" data-act=\"companyForm\">+ Company</button>", "<section class=\"card\"><h2>Ваши компании</h2><p class=\"small\">Добавить одним нажатием: ": "<section class=\"card\"><h2>Your companies</h2><p class=\"small\">Add in one tap: ", "неделя": "week", "месяц": "month", ".</p><p class=\"muted small\">Уже существующие компании с таким названием пропускаются. Правила переработок потом можно поправить в «Изменить».</p><div class=\"row\"><button class=\"btn primary\" data-act=\"presetAdd\">Добавить ": ".</p><p class=\"muted small\">Companies that already exist with the same name are skipped. Overtime rules can be adjusted later in «Edit».</p><div class=\"row\"><button class=\"btn primary\" data-act=\"presetAdd\">Add ", "компанию": "company", "компании": "companies", "компаний": "companies", "<p class=\"empty\">Компаний пока нет.</p>": "<p class=\"empty\">No companies yet.</p>", "\">Объекты</button><button class=\"btn sm\" data-act=\"companyForm\" data-arg=\"": "\">Sites</button><button class=\"btn sm\" data-act=\"companyForm\" data-arg=\"", "\">Изменить</button></div>": "\">Edit</button></div>", "<p class=\"small\"><b>Зарплата:</b> ": "<p class=\"small\"><b>Pay:</b> ", "каждую неделю (недельный и месячный отчёт)": "every week (weekly and monthly report)", "раз в месяц": "once a month", " · отчёт ": " · report ", "на иврите": "in Hebrew", "на русском": "in Russian", "<p class=\"small\"><b>Старшие:</b> ": "<p class=\"small\"><b>Supervisors:</b> ", "<span class=\"muted\">не назначены</span>": "<span class=\"muted\">not assigned</span>", "<p class=\"small\"><b>Объекты:</b> ": "<p class=\"small\"><b>Sites:</b> ", "<span class=\"muted\">не добавлены</span>": "<span class=\"muted\">not added</span>", "<p class=\"small\">Норма ": "<p class=\"small\">Standard ", " ч в день, дальше ": " h per day, then ", " ч по ": " h at ", "%, потом ": "%, then ", "Доплата по дням: ": "Day surcharges: ", "Все дни по 100%.": "All days 100%.", " Перерыв ": " A break of ", " мин вычитается из смен длиннее 6 ч, если работник не отмечал перерыв.": " min is deducted from shifts over 6 h if the worker did not mark a break.", "работник": "worker", "работника": "workers", "работников": "workers", " · смена считается забытой после ": " · a shift counts as forgotten after ", " ч</p></section>": " h</p></section>", "Отмена": "Cancel", "Компания": "Company", "Новая компания": "New company", "Название": "Name", "Зарплата": "Pay", ">Раз в месяц</option><option value=\"week\"": ">Once a month</option><option value=\"week\"", ">Каждую неделю</option></select>": ">Every week</option></select>", "Язык отчёта Excel": "Excel report language", ">Русский</option><option value=\"he\"": ">Russian</option><option value=\"he\"", "Обычных часов в день": "Regular hours per day", "Авто-перерыв, мин (смены > 6 ч)": "Auto break, min (shifts > 6 h)", "Первые часы переработки": "First overtime hours", "…оплата, %": "…pay, %", "Дальше переработка, %": "Further overtime, %", "Смена «забыта» после, ч": "Shift «forgotten» after, h", "<div class=\"field\"><label>Оплата по дням недели, %</label><div class=\"grid7\">": "<div class=\"field\"><label>Pay by day of week, %</label><div class=\"grid7\">", "<p class=\"muted small\">Если день, праздник и переработка дают разный процент, берётся больший. Праздники отмечаются внизу вкладки «Компании».</p></div>": "<p class=\"muted small\">If the day, a holiday and overtime give different percentages, the higher one is used. Holidays are marked at the bottom of the «Companies» tab.</p></div>", "Сохранить": "Save", "\">Удалить</button>": "\">Delete</button>", "<h2>Объекты · ": "<h2>Sites · ", "</h2><p class=\"muted small\">Работник выбирает объект при начале смены. Если задать место, вы увидите, отметился ли он рядом с объектом. Чтобы задать место, нажмите 📍, находясь на объекте.</p>": "</h2><p class=\"muted small\">The worker picks a site when starting a shift. If you set a location, you will see whether they clocked in near the site. To set it, tap 📍 while at the site.</p>", "Радиус, м": "Radius, m", "Обновить место": "Update location", "Задать место здесь": "Set location here", "\">Удалить</button></div>": "\">Delete</button></div>", "\" target=\"_blank\" rel=\"noopener\">Место задано · открыть на карте</a>": "\" target=\"_blank\" rel=\"noopener\">Location set · open on map</a>", "<span class=\"muted small\">Место не задано</span>": "<span class=\"muted small\">Location not set</span>", "<p class=\"empty\">Объектов пока нет.</p>": "<p class=\"empty\">No sites yet.</p>", "<button class=\"btn\" type=\"button\" data-act=\"siteNew\">+ Добавить объект</button>": "<button class=\"btn\" type=\"button\" data-act=\"siteNew\">+ Add site</button>", "<h2>Праздник / особый день</h2>": "<h2>Holiday / special day</h2>", "Дата": "Date", "<input id=\"hn\" name=\"name\" placeholder=\"Например: Песах\">": "<input id=\"hn\" name=\"name\" placeholder=\"For example: Passover\">", "Оплата за этот день, %": "Pay for this day, %", "<div class=\"field\"><label>Для каких компаний</label>": "<div class=\"field\"><label>For which companies</label>", "<p class=\"muted small\">Если в этот день и так платят больше (например, суббота 150% или переработка), берётся больший процент.</p>": "<p class=\"muted small\">If this day already pays more (e.g. Saturday 150% or overtime), the higher percentage is used.</p>", "Добавить": "Add", "Сначала добавьте компанию": "Add a company first", "<fieldset style=\"border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;margin:0\"><legend style=\"font-weight:600;padding:0 4px\">Права</legend>": "<fieldset style=\"border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;margin:0\"><legend style=\"font-weight:600;padding:0 4px\">Permissions</legend>", "Работник": "Worker", "отмечает своё время": "records their own time", "Старший": "Supervisor", "управляет выбранными компаниями": "manages the selected companies", "Главный админ": "Main admin", "видит всё, как вы": "sees everything, like you", "><label>Компании старшего</label>": "><label>Supervisor's companies</label>", "Новый работник": "New worker", "Имя и фамилия": "Full name", "Телефон": "Phone", "Пароль для входа (минимум 6 символов)": "Login password (at least 6 characters)", "<p class=\"muted small\">ID присвоится автоматически. Сообщите работнику ID и пароль.</p>": "<p class=\"muted small\">The ID is assigned automatically. Give the worker the ID and password.</p>", "\">Отправить письмо для смены пароля</button></div>": "\">Send password reset email</button></div>", "<p class=\"muted small\">Работник входит по телефону. Восстановить забытый пароль можно только через email, поэтому лучше попросить его указать email.</p>": "<p class=\"muted small\">The worker logs in by phone. A forgotten password can only be recovered by email, so it is better to ask them to add an email.</p>", "Ставка, ₪ в час": "Rate, ₪ per hour", "Проезд, ₪ за рабочий день": "Travel, ₪ per work day", "> Работает сейчас": "> Currently working", " (регистрация будет принята)": " (sign-up will be accepted)", "Изменить смену": "Edit shift", "Добавить смену": "Add shift", "Начало": "Start", "Конец (пусто — смена ещё идёт)": "End (empty — shift still ongoing)", "Перерывы, мин": "Breaks, min", "Объект": "Site", "<p class=\"muted small\">Все изменения попадают в историю правок.</p><p class=\"err\" id=\"serr\"></p>": "<p class=\"muted small\">All changes go into the edit history.</p><p class=\"err\" id=\"serr\"></p>", "<h2>Доплата или вычет</h2><p class=\"muted\">": "<h2>Extra or deduction</h2><p class=\"muted\">", "Тип": "Type", " (вычитается)": " (subtracted)", " (прибавляется)": " (added)", "Сумма, ₪": "Amount, ₪", "Комментарий": "Comment", "<input id=\"an\" name=\"note\" placeholder=\"Например: премия за ноябрь\">": "<input id=\"an\" name=\"note\" placeholder=\"For example: November bonus\">", "Имя": "Name", "Ставка ₪/ч": "Rate ₪/h", "Часы всего": "Total hours", "Часы ": "Hours ", "Сверхурочно": "Overtime", "За часы ₪": "For hours ₪", "Рабочих дней": "Work days", "Проезд ₪": "Travel ₪", "Доплаты ₪": "Extras ₪", "Вычеты ₪": "Deductions ₪", "К выплате ₪": "To pay ₪", "Смены по дням": "Shifts by day", "День": "Day", "Конец": "End", "Перерыв, мин": "Break, min", "Часы за день": "Hours per day", "Сумма за день ₪": "Amount per day ₪", "Место начала": "Start location", "Место конца": "End location", "далеко ": "far ", "Доплаты и вычеты": "Extras and deductions", "Сумма ₪": "Amount ₪", "Отчёт для Excel": "Report for Excel", "<h2>Данные для Excel</h2><p class=\"muted small\">Скачивание здесь не сработало. Нажмите «Копировать» и вставьте в Excel или Google Таблицы.</p><textarea id=\"csvbox\" rows=\"8\" readonly>": "<h2>Data for Excel</h2><p class=\"muted small\">The download did not work here. Tap «Copy» and paste into Excel or Google Sheets.</p><textarea id=\"csvbox\" rows=\"8\" readonly>", "</textarea><div class=\"row\"><button class=\"btn primary\" data-act=\"copyCsv\">Копировать</button><button class=\"btn\" data-act=\"closeModal\">Закрыть</button></div>": "</textarea><div class=\"row\"><button class=\"btn primary\" data-act=\"copyCsv\">Copy</button><button class=\"btn\" data-act=\"closeModal\">Close</button></div>", "Нет компаний": "No companies", "<h2>Скачать Excel · ": "<h2>Download Excel · ", "</h2><p class=\"muted small\">Период — тот, что выбран вверху отчёта. <b>Отчёт</b> — сводка + лист на каждого работника (у недельных компаний ещё лист «По неделям»). <b>Недели</b> — сетка вход / выход / часы.</p>": "</h2><p class=\"muted small\">The period is the one selected at the top of the report. <b>Report</b> — summary + a sheet per worker (weekly companies also get a «By weeks» sheet). <b>Weeks</b> — in / out / hours grid.</p>", "<button class=\"btn big primary\" data-act=\"xl\" data-arg=\"companies:\">📊 Сводка по всем компаниям</button>": "<button class=\"btn big primary\" data-act=\"xl\" data-arg=\"companies:\">📊 Summary of all companies</button>", "зарплата каждую неделю": "paid every week", "зарплата раз в месяц": "paid once a month", "\">Отчёт</button><button class=\"btn sm\" data-act=\"xl\" data-arg=\"week:": "\">Report</button><button class=\"btn sm\" data-act=\"xl\" data-arg=\"week:", "\">Недели</button></div>": "\">Weeks</button></div>", "<div class=\"row\"><button class=\"btn sm ghost\" data-act=\"export\">Все смены подробно (CSV)</button><div style=\"flex:1\"></div><button class=\"btn\" data-act=\"closeModal\">Закрыть</button></div>": "<div class=\"row\"><button class=\"btn sm ghost\" data-act=\"export\">All shifts in detail (CSV)</button><div style=\"flex:1\"></div><button class=\"btn\" data-act=\"closeModal\">Close</button></div>", "Готовим файл…": "Preparing the file…", "За этот период у ": "No shifts in this period for ", " нет смен": "", "Не удалось сохранить файл. Попробуйте на компьютере.": "Could not save the file. Try on a computer.", "Не получилось сделать Excel: ": "Could not create Excel: ", "Этот месяц закрыт. Сначала откройте его в отчёте.": "This month is closed. Reopen it in the report first.", "Письмо отправлено на ": "Email sent to ", "Закрыть смену ": "Close the shift of ", " текущим временем?": " at the current time?", "Закрыть": "Close", "Смена закрыта": "Shift closed", "Одобрено, время обновлено": "Approved, time updated", "Запрос отклонён": "Request rejected", "Удалить эту смену?": "Delete this shift?", "Удалить": "Delete", "Смена удалена": "Shift deleted", "Удалить эту доплату/вычет?": "Delete this extra/deduction?", "Удалено": "Deleted", "Сначала переведите или удалите работников этой компании (": "First move or delete this company's workers (", "Удалить компанию «": "Delete company «", "Компания удалена": "Company deleted", "Объект ": "Site ", "Определяем место…": "Locating…", "Не удалось определить место. Разрешите геолокацию для браузера.": "Could not get the location. Allow location for the browser.", "Место объекта задано (точность ~": "Site location set (accuracy ~", " м)": " m)", "Удалить все праздники из списка?": "Delete all holidays from the list?", "Удалить все": "Delete all", "Список праздников очищен": "Holiday list cleared", "Месяц закрыт": "Month closed", "Месяц открыт для правок": "Month reopened for edits", "Закрыть ": "Close ", " для всех компаний": " for all companies", " для «": " for «", "? Смены, запросы и доплаты за этот месяц больше нельзя будет менять.": "? Shifts, requests and extras for this month can no longer be changed.", "Закрыть месяц": "Close month", "Отклонить регистрацию ": "Reject the sign-up of ", "Отклонить": "Reject", "Регистрация отклонена": "Sign-up rejected", "Добавлено компаний: ": "Companies added: ", "Скопировано, вставьте в Excel": "Copied, paste into Excel", "Сохранено": "Saved", "У каждого объекта должно быть название": "Every site needs a name", "Объекты сохранены": "Sites saved", "Выберите хотя бы одну компанию": "Choose at least one company", "Добавлено": "Added", "Укажите сумму больше нуля": "Enter an amount greater than zero", "Укажите дату": "Enter a date", "Этот месяц закрыт": "This month is closed", "Проверьте номер телефона": "Check the phone number", "Этот телефон уже есть у другого работника": "This phone already belongs to another worker", "Отметьте компании, которыми управляет старший": "Select the companies the supervisor manages", "Пароль: минимум 6 символов": "Password: at least 6 characters", "Укажите телефон или email": "Enter a phone or email", "Этот телефон уже зарегистрирован": "This phone is already registered", "Этот email уже зарегистрирован": "This email is already registered", "Не удалось создать вход: ": "Could not create login: ", "<h2>Работник добавлен</h2><p>ID для входа: <b class=\"tnum\" style=\"font-size:22px\">": "<h2>Worker added</h2><p>Login ID: <b class=\"tnum\" style=\"font-size:22px\">", "</b></p><p class=\"muted\">Сообщите ему ID (или телефон/email) и пароль.</p><button class=\"btn primary\" data-act=\"closeModal\">Понятно</button>": "</b></p><p class=\"muted\">Give them the ID (or phone/email) and password.</p><button class=\"btn primary\" data-act=\"closeModal\">Got it</button>", "Укажите начало": "Enter the start", "Смена изменена": "Shift updated", "Смена добавлена": "Shift added", "\" target=\"_blank\" rel=\"noopener\">ссылка</a>": "\" target=\"_blank\" rel=\"noopener\">link</a>", "Ошибка загрузки данных: ": "Data loading error: ", "Не удалось сохранить профиль: ": "Could not save the profile: ", "Ошибка загрузки профиля: ": "Profile loading error: ", "Не удалось загрузить сайт. Проверьте интернет и обновите страницу.": "Could not load the site. Check the internet and refresh the page.", "Ошибка загрузки: ": "Loading error: "}};
+const A=x=>(LANG!=='ru'&&AT[LANG]&&AT[LANG][x]!=null)?AT[LANG][x]:x;
+
 const t=(k,v)=>{let s=(T[LANG]&&T[LANG][k])||T.ru[k]||k;if(v)for(const x in v)s=s.split('{'+x+'}').join(v[x]);return s;};
 const lDay=k=>parseDay(k).toLocaleDateString(LOCALE[LANG],{day:'numeric',month:'long',weekday:'short'});
 const lMonth=m=>{const [y,mo]=m.split('-').map(Number);const s=new Date(y,mo-1,1).toLocaleDateString(LOCALE[LANG],{month:'long',year:'numeric'}).replace(/\s?г\.$/,'');return s.charAt(0).toUpperCase()+s.slice(1);};
@@ -326,6 +340,7 @@ function periodLabel(){
   const p=S.period,[a,b]=periodRange();
   if(p.mode==='month')return monthLabel(p.month);
   const da=parseDay(a),db=parseDay(b);
+  if(LANG!=='ru')return fmtShort(a)+' – '+fmtShort(b);
   if(da.getMonth()===db.getMonth()&&da.getFullYear()===db.getFullYear())return da.getDate()+'–'+db.getDate()+' '+MGEN[db.getMonth()];
   return fmtShort(a)+' – '+fmtShort(b);
 }
@@ -375,9 +390,9 @@ const sortedWorkers=()=>Object.entries(S.workers).sort((a,b)=>String(a[1].code).
 const scopedCompanies=()=>sortedCompanies().filter(([id])=>inScope(id));
 const pendingRegs=()=>Object.entries(S.workers).filter(([,w])=>isPendingReg(w)&&inScope(w.companyId));
 const managersOf=cid=>Object.values(S.workers).filter(w=>roleOf(w)==='manager'&&Array.isArray(w.manages)&&w.manages.includes(cid)&&w.active!==false);
-const rolePill=w=>{const r=roleOf(w);if(r==='super')return ' <span class="pill">главный админ</span>';if(r==='manager')return ' <span class="pill">старший</span>';return '';};
+const rolePill=w=>{const r=roleOf(w);if(r==='super')return A(' <span class="pill">главный админ</span>');if(r==='manager')return A(' <span class="pill">старший</span>');return '';};
 const pending=()=>Object.entries(S.requests).filter(([,r])=>r.status==='pending'&&wScope(r.workerId));
-const companyName=id=>(S.companies[id]&&S.companies[id].name)||'Без компании';
+const companyName=id=>(S.companies[id]&&S.companies[id].name)||A('Без компании');
 function canEditPerson(w){const a=adm();return !!a&&(a.roles||(roleOf(w)==='worker'&&inScope(w.companyId)));}
 const myName=()=>(S.workers[S.uid]&&S.workers[S.uid].name)||S.email||'';
 
@@ -429,21 +444,21 @@ const snap=s=>s?{start:s.start,end:s.end||null,breakMin:Math.round(shiftWork(s,s
 function langSwitch(){return '<div class="langs">'+[['ru','RU'],['he','עב'],['en','EN']].map(([k,l])=>'<button class="lang'+(LANG===k?' on':'')+'" data-act="lang" data-arg="'+k+'">'+l+'</button>').join('')+'</div>';}
 function topBar(){
   let right='';const r=myRights();
-  if(S.asAdminPreview)right=(S.view!=='admin'?langSwitch():'')+'<button class="btn ghost" data-act="backAdmin">← Выйти из просмотра</button>';
+  if(S.asAdminPreview)right=(S.view!=='admin'?langSwitch():'')+A('<button class="btn ghost" data-act="backAdmin">← Выйти из просмотра</button>');
   else if(S.uid){
     if(S.view!=='admin')right+=langSwitch();
     if(S.view==='worker'&&r)right+='<button class="btn ghost" data-act="goAdmin">'+t('adminPanel')+'</button>';
-    if(S.view==='admin'&&r&&S.workers[S.uid]&&S.workers[S.uid].companyId)right+='<button class="btn ghost" data-act="myTable">Мой табель</button>';
-    right+='<button class="btn ghost" data-act="logout">'+(S.view==='admin'?'Выйти':t('logout'))+'</button>';
+    if(S.view==='admin'&&r&&S.workers[S.uid]&&S.workers[S.uid].companyId)right+=A('<button class="btn ghost" data-act="myTable">Мой табель</button>');
+    right+='<button class="btn ghost" data-act="logout">'+(S.view==='admin'?A('Выйти'):t('logout'))+'</button>';
   }else right+=langSwitch();
-  return '<div class="brand"><i aria-hidden="true"></i>Табель</div>'+(S.demo?'<span class="pill warn">Демо: данные не сохраняются</span>':'')+'<div class="sp"></div>'+right;
+  return '<div class="brand"><i aria-hidden="true"></i>Табель</div>'+(S.demo?A('<span class="pill warn">Демо: данные не сохраняются</span>'):'')+'<div class="sp"></div>'+right;
 }
 
 /* ---------- worker-facing screens ---------- */
 const fld=(id,label,input)=>'<div class="field"><label for="'+id+'">'+label+'</label>'+input+'</div>';
 function startView(){
   let h='';
-  if(S.demo)h+='<div class="banner">Демо-режим: сайт не подключён к базе. Вход: <b>admin@demo.ru</b> / <b>123456</b>.</div>';
+  if(S.demo)h+=A('<div class="banner">Демо-режим: сайт не подключён к базе. Вход: <b>admin@demo.ru</b> / <b>123456</b>.</div>');
   h+='<section class="card"><h1>'+t('loginTitle')+'</h1><p class="muted">'+t('loginSub')+'</p>'+
   '<form data-form="login" class="card" style="padding:0;border:0;gap:10px">'+
   fld('lid',t('loginId'),'<input id="lid" data-bind="id" dir="ltr" autocomplete="username" autocapitalize="off" placeholder="0001" value="'+esc(S.login.id)+'">')+
@@ -478,7 +493,7 @@ function workerView(){
   const wid=S.me,w=S.workers[wid],[mf,mt]=monthRange(S.month),m=calc(wid,mf,mt),open=openShiftOf(wid);
   const r=rulesOf(S.companies[w.companyId]);const locked=isLocked(w.companyId,S.month);
   let h='';
-  if(S.asAdminPreview)h+='<div class="banner">Вы смотрите приложение глазами работника. Кнопки работают по-настоящему.</div>';
+  if(S.asAdminPreview)h+=A('<div class="banner">Вы смотрите приложение глазами работника. Кнопки работают по-настоящему.</div>');
   else if(rightsOf(w))h+='<div class="banner" style="background:var(--accent-soft);color:var(--accent)">'+t('youAre',{r:roleOf(w)==='super'?t('roleSuper'):t('roleManager')})+'<button class="btn sm" data-act="goAdmin">'+t('adminPanel')+'</button></div>';
   h+='<section class="card"><div><h1>'+esc(w.name)+'</h1><p class="muted small">'+esc(companyName(w.companyId))+' · ID '+esc(w.code)+'</p></div>';
   if(open){
@@ -526,45 +541,46 @@ function workerView(){
 function adminHome(){
   const a=adm();const me=S.workers[S.uid]||{};const now=Date.now();
   const name=me.name||S.email||'';const initials=String(name).replace(/@.*/,'').split(/[\s._-]+/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join('')||'?';
-  const role=a.owner?'Главный администратор':a.role==='super'?'Администратор всех компаний':'Старший · '+(scopedCompanies().map(([,c])=>c.name).join(', ')||'компании не назначены');
+  const role=a.owner?A('Главный администратор'):a.role==='super'?A('Администратор всех компаний'):A('Старший · ')+(scopedCompanies().map(([,c])=>c.name).join(', ')||A('компании не назначены'));
   const open=Object.values(S.shifts).filter(s=>!s.end&&wScope(s.workerId));
   const forgot=open.filter(s=>now-s.start>rulesOf(S.companies[s.companyId]).maxShiftH*3600000).length;
   const req=pending().length,regs=pendingRegs().length;const cs=scopedCompanies();
   const ws=sortedWorkers().filter(([,w])=>!isPendingReg(w)&&inScope(w.companyId)&&w.active!==false);
   const [pa,pb]=periodRange();let H=0,P=0;ws.forEach(([id])=>{const m=calc(id,pa,pb);H+=m.totalH;P+=m.total;});
-  const hr=new Date().getHours();const hello=hr<5?'Доброй ночи':hr<12?'Доброе утро':hr<18?'Добрый день':'Добрый вечер';
+  const hr=new Date().getHours();const hello=hr<5?A('Доброй ночи'):hr<12?A('Доброе утро'):hr<18?A('Добрый день'):A('Добрый вечер');
   const tile=(tab,icon,val,title,sub,alert)=>'<button class="htile'+(alert?' alert':'')+'" data-act="tab" data-arg="'+tab+'"><span class="ti" aria-hidden="true">'+icon+'</span><span class="tv">'+val+'</span><span class="tt">'+title+'</span>'+(sub?'<span class="ts">'+sub+'</span>':'')+'</button>';
   let h='<section class="card profile"><div class="row" style="gap:14px;align-items:center;flex-wrap:nowrap"><div class="ava">'+esc(initials)+'</div><div class="grow"><div class="muted small">'+hello+'</div><h2 style="margin:0">'+esc(String(name).replace(/@.*/,''))+'</h2><div class="muted small">'+esc(role)+'</div></div></div>'+
     '<div class="muted small">'+esc(S.email)+' · '+fmtDay(today)+'</div>'+
-    '<div class="row">'+(me.companyId?'<button class="btn sm" data-act="myTable">Мой табель</button>':'')+'<button class="btn sm ghost" data-act="logout">Выйти</button></div></section>';
-  if(forgot)h+='<div class="banner" style="background:var(--stop-soft);color:var(--stop)">'+forgot+' '+plural(forgot,'смена открыта','смены открыты','смен открыты')+' слишком долго.<button class="btn sm" data-act="tab" data-arg="now">Посмотреть</button></div>';
-  if(a.all&&!cs.length)h+='<div class="banner">Начните с компаний: добавьте их, потом работников.<button class="btn sm" data-act="tab" data-arg="companies">Перейти</button></div>';
+    '<div class="row" style="align-items:center;gap:10px"><span class="small">'+A('Язык')+'</span>'+langSwitch()+'</div>'+
+    '<div class="row">'+(me.companyId?A('<button class="btn sm" data-act="myTable">Мой табель</button>'):'')+A('<button class="btn sm ghost" data-act="logout">Выйти</button></div></section>');
+  if(forgot)h+='<div class="banner" style="background:var(--stop-soft);color:var(--stop)">'+forgot+' '+plural(forgot,A('смена открыта'),A('смены открыты'),A('смен открыты'))+A(' слишком долго.<button class="btn sm" data-act="tab" data-arg="now">Посмотреть</button></div>');
+  if(a.all&&!cs.length)h+=A('<div class="banner">Начните с компаний: добавьте их, потом работников.<button class="btn sm" data-act="tab" data-arg="companies">Перейти</button></div>');
   h+='<div class="htiles">'+
-    tile('report','📊',money(P),'Зарплаты · '+esc(periodLabel()),hmH(H)+' ч · нажмите, чтобы открыть отчёт','').replace('class="htile','class="htile wide')+
-    tile('now','⏱',open.length,'Сейчас на смене',forgot?'забытых: '+forgot:'',forgot)+
-    tile('requests','✉️',req,'Запросы на правку',req?'ждут ответа':'всё разобрано',req)+
-    tile('workers','👥',ws.length,'Работники',regs?'новых заявок: '+regs:'',regs)+
-    tile('companies','🏢',cs.length,'Компании','','')+
+    tile('report','📊',money(P),A('Зарплаты · ')+esc(periodLabel()),hmH(H)+A(' ч · нажмите, чтобы открыть отчёт'),'').replace('class="htile','class="htile wide')+
+    tile('now','⏱',open.length,A('Сейчас на смене'),forgot?A('забытых: ')+forgot:'',forgot)+
+    tile('requests','✉️',req,A('Запросы на правку'),req?A('ждут ответа'):A('всё разобрано'),req)+
+    tile('workers','👥',ws.length,A('Работники'),regs?A('новых заявок: ')+regs:'',regs)+
+    tile('companies','🏢',cs.length,A('Компании'),'','')+
     '</div>';
   return h;
 }
 function adminView(){
   const a=adm(),n=pending().length;
-  const tabs=[['home','Главная',''],['now','Сейчас',''],['report','Отчёт',''],['requests','Запросы',n],['workers','Работники',pendingRegs().length],['companies','Компании','']];
-  let h='<div>'+(S.tab==='home'?'':'<h1>Админ-панель</h1>')+(S.tab==='home'||a.all?'':'<p class="muted small">Ваши компании: '+(scopedCompanies().map(([,c])=>esc(c.name)).join(', ')||'не назначены')+'</p>')+'</div><nav class="tabs" role="tablist">'+tabs.map(([k,l,c])=>'<button class="tab" role="tab" aria-selected="'+(S.tab===k)+'" data-act="tab" data-arg="'+k+'">'+l+(c?'<span class="cnt">'+c+'</span>':'')+'</button>').join('')+'</nav>';
-  if(a.all&&!Object.keys(S.companies).length&&S.tab!=='companies'&&S.tab!=='home')h+='<div class="banner">Начните с вкладки «Компании»: добавьте свои компании, потом работников.<button class="btn sm" data-act="tab" data-arg="companies">Перейти</button></div>';
+  const tabs=[['home',A('Главная'),''],['now',A('Сейчас'),''],['report',A('Отчёт'),''],['requests',A('Запросы'),n],['workers',A('Работники'),pendingRegs().length],['companies',A('Компании'),'']];
+  let h='<div>'+(S.tab==='home'?'':A('<h1>Админ-панель</h1>'))+(S.tab==='home'||a.all?'':A('<p class="muted small">Ваши компании: ')+(scopedCompanies().map(([,c])=>esc(c.name)).join(', ')||A('не назначены'))+'</p>')+'</div><nav class="tabs" role="tablist">'+tabs.map(([k,l,c])=>'<button class="tab" role="tab" aria-selected="'+(S.tab===k)+'" data-act="tab" data-arg="'+k+'">'+l+(c?'<span class="cnt">'+c+'</span>':'')+'</button>').join('')+'</nav>';
+  if(a.all&&!Object.keys(S.companies).length&&S.tab!=='companies'&&S.tab!=='home')h+=A('<div class="banner">Начните с вкладки «Компании»: добавьте свои компании, потом работников.<button class="btn sm" data-act="tab" data-arg="companies">Перейти</button></div>');
   h+=({home:adminHome,now:adminNow,report:adminReport,requests:adminRequests,workers:adminWorkers,companies:adminCompanies}[S.tab]||adminHome)();
   return h;
 }
 function geoPills(s){
   const site=siteOf(s);let h='';
-  [['start','начало'],['end','конец']].forEach(([k,lbl])=>{
+  [['start',A('начало')],['end',A('конец')]].forEach(([k,lbl])=>{
     if(k==='end'&&!s.end)return;
     const loc=s[k+'Loc'];
-    if(!loc){if(s.createdAt&&!s.editedAt&&s.source!=='admin')h+=' <span class="pill grey" title="'+lbl+'">'+lbl+': без места</span>';return;}
+    if(!loc){if(s.createdAt&&!s.editedAt&&s.source!=='admin')h+=' <span class="pill grey" title="'+lbl+'">'+lbl+A(': без места</span>');return;}
     if(site&&isFinite(site.lat)&&isFinite(site.lng)){
       const d=distM(loc,site);const ok=d<=(Number(site.radius)||200)+Math.min(loc.acc||0,300);
-      h+=' <a class="pill'+(ok?'':' warn')+'" href="'+mapUrl(loc)+'" target="_blank" rel="noopener">'+lbl+': '+(ok?'на объекте':'далеко, '+fmtDist(d))+'</a>';
+      h+=' <a class="pill'+(ok?'':' warn')+'" href="'+mapUrl(loc)+'" target="_blank" rel="noopener">'+lbl+': '+(ok?A('на объекте'):A('далеко, ')+fmtDist(d))+'</a>';
     }else h+=' <a class="pill grey" href="'+mapUrl(loc)+'" target="_blank" rel="noopener">📍 '+lbl+'</a>';
   });
   return h;
@@ -574,27 +590,27 @@ function adminNow(){
   const open=Object.entries(S.shifts).filter(([,s])=>!s.end&&wScope(s.workerId)).map(([id,s])=>{const r=rulesOf(S.companies[s.companyId]);return {id,s,forgot:now-s.start>r.maxShiftH*3600000,maxH:r.maxShiftH};}).sort((a,b)=>(b.forgot-a.forgot)||(a.s.start-b.s.start));
   const forgotN=open.filter(x=>x.forgot).length;
   let h='';
-  if(forgotN)h+='<div class="banner" style="background:var(--stop-soft);color:var(--stop)">'+forgotN+' '+plural(forgotN,'смена открыта','смены открыты','смен открыты')+' слишком долго — похоже, забыли нажать «Закончить».</div>';
-  h+='<section class="card"><div class="row between"><h2>Сейчас на смене</h2><span class="pill">'+open.length+'</span></div>';
-  if(!open.length)h+='<p class="empty">Никого нет на смене.</p>';
+  if(forgotN)h+='<div class="banner" style="background:var(--stop-soft);color:var(--stop)">'+forgotN+' '+plural(forgotN,A('смена открыта'),A('смены открыты'),A('смен открыты'))+A(' слишком долго — похоже, забыли нажать «Закончить».</div>');
+  h+=A('<section class="card"><div class="row between"><h2>Сейчас на смене</h2><span class="pill">')+open.length+'</span></div>';
+  if(!open.length)h+=A('<p class="empty">Никого нет на смене.</p>');
   open.forEach(({id,s,forgot,maxH})=>{const w=S.workers[s.workerId]||{};const ob=openBreak(s);const site=siteOf(s);
-    h+='<div class="list-item"><div class="grow"><div><b>'+esc(w.name||'?')+'</b> <span class="muted small">'+esc(w.code||'')+'</span>'+(forgot?' <span class="pill stop">больше '+maxH+' ч</span>':'')+(ob?' <span class="pill warn">перерыв</span>':'')+'</div>'+
-    '<div class="muted small">'+esc(companyName(s.companyId||w.companyId))+(site?' · '+esc(site.name):'')+' · с '+fmtDT(s.start)+'</div><div class="small">'+geoPills(s)+'</div></div>'+
-    '<span class="tnum" data-work="'+id+'">'+hm(shiftWork(s).ms)+'</span>'+(forgot?'<button class="btn sm" data-act="shiftEdit" data-arg="'+id+'">Указать конец</button>':'<button class="btn sm" data-act="adminClose" data-arg="'+id+'">Закрыть</button>')+'</div>';
+    h+='<div class="list-item"><div class="grow"><div><b>'+esc(w.name||'?')+'</b> <span class="muted small">'+esc(w.code||'')+'</span>'+(forgot?A(' <span class="pill stop">больше ')+maxH+A(' ч</span>'):'')+(ob?A(' <span class="pill warn">перерыв</span>'):'')+'</div>'+
+    '<div class="muted small">'+esc(companyName(s.companyId||w.companyId))+(site?' · '+esc(site.name):'')+A(' · с ')+fmtDT(s.start)+'</div><div class="small">'+geoPills(s)+'</div></div>'+
+    '<span class="tnum" data-work="'+id+'">'+hm(shiftWork(s).ms)+'</span>'+(forgot?'<button class="btn sm" data-act="shiftEdit" data-arg="'+id+A('">Указать конец</button>'):'<button class="btn sm" data-act="adminClose" data-arg="'+id+A('">Закрыть</button>'))+'</div>';
   });
   h+='</section>';
   const n=pending().length;
-  if(n)h+='<section class="card"><div class="row between"><p><b>'+n+'</b> '+plural(n,'запрос ждёт','запроса ждут','запросов ждут')+' вашего решения</p><button class="btn sm primary" data-act="tab" data-arg="requests">Открыть</button></div></section>';
+  if(n)h+='<section class="card"><div class="row between"><p><b>'+n+'</b> '+plural(n,A('запрос ждёт'),A('запроса ждут'),A('запросов ждут'))+A(' вашего решения</p><button class="btn sm primary" data-act="tab" data-arg="requests">Открыть</button></div></section>');
   return h;
 }
 function periodBar(){
   const p=S.period;
-  let h='<div class="seg" role="group">'+[['month','Месяц'],['week','Неделя'],['custom','Период']].map(([k,l])=>'<button class="'+(p.mode===k?'on':'')+'" data-act="pmode" data-arg="'+k+'">'+l+'</button>').join('')+'</div>';
+  let h='<div class="seg" role="group">'+[['month',A('Месяц')],['week',A('Неделя')],['custom',A('Период')]].map(([k,l])=>'<button class="'+(p.mode===k?'on':'')+'" data-act="pmode" data-arg="'+k+'">'+l+'</button>').join('')+'</div>';
   if(p.mode==='custom'){
-    h+='<form data-form="prange" class="row" style="align-items:flex-end">'+fld('pfrom','С','<input id="pfrom" name="from" type="date" value="'+p.from+'">')+fld('pto','По','<input id="pto" name="to" type="date" value="'+p.to+'">')+'<button class="btn" type="submit">Показать</button></form><p class="muted small">Не больше 3 месяцев.</p>';
+    h+='<form data-form="prange" class="row" style="align-items:flex-end">'+fld('pfrom',A('С'),'<input id="pfrom" name="from" type="date" value="'+p.from+'">')+fld('pto',A('По'),'<input id="pto" name="to" type="date" value="'+p.to+'">')+A('<button class="btn" type="submit">Показать</button></form><p class="muted small">Не больше 3 месяцев.</p>');
   }else{
     const locked=p.mode==='month'&&scopedCompanies().length&&(S.repCompany==='all'?scopedCompanies().every(([id])=>isLocked(id,p.month)):isLocked(S.repCompany,p.month));
-    h+='<div class="monthnav"><button class="btn sm" data-act="pshift" data-arg="-1" aria-label="Назад">←</button><strong>'+periodLabel()+(locked?' 🔒':'')+'</strong><button class="btn sm" data-act="pshift" data-arg="1" aria-label="Вперёд">→</button></div>';
+    h+=A('<div class="monthnav"><button class="btn sm" data-act="pshift" data-arg="-1" aria-label="Назад">←</button><strong>')+periodLabel()+(locked?' 🔒':'')+A('</strong><button class="btn sm" data-act="pshift" data-arg="1" aria-label="Вперёд">→</button></div>');
   }
   return h;
 }
@@ -608,55 +624,55 @@ function adminReport(){
   const a=adm();const rows=reportRows();
   const pcts=[...new Set(rows.flatMap(r=>Object.keys(r.m.buckets).map(Number)))].sort((x,y)=>x-y);if(!pcts.includes(100))pcts.unshift(100);
   const anyTravel=rows.some(r=>r.m.travel),anyAdj=rows.some(r=>r.m.plus||r.m.minus);
-  let h=periodBar()+'<div class="row"><div class="field" style="flex:1;min-width:180px"><label>Компания</label><div class="dd"><button class="ddbtn" data-act="repPick">'+esc(S.repCompany==='all'?(a.all?'Все компании':'Все мои компании'):companyName(S.repCompany))+'<span aria-hidden="true">▾</span></button>'+
-  (S.repOpen?'<div class="ddback" data-act="repClose"></div><div class="ddlist">'+[['all',a.all?'Все компании':'Все мои компании']].concat(scopedCompanies().map(([id,c])=>[id,c.name])).map(([id,l])=>'<button class="'+(S.repCompany===id?'on':'')+'" data-act="repSet" data-arg="'+id+'">'+esc(l)+'</button>').join('')+'</div>':'')+'</div></div>'+
-  '<button class="btn primary" data-act="xlModal" style="align-self:flex-end">Скачать Excel</button></div>';
+  let h=periodBar()+A('<div class="row"><div class="field" style="flex:1;min-width:180px"><label>Компания</label><div class="dd"><button class="ddbtn" data-act="repPick">')+esc(S.repCompany==='all'?(a.all?A('Все компании'):A('Все мои компании')):companyName(S.repCompany))+'<span aria-hidden="true">▾</span></button>'+
+  (S.repOpen?'<div class="ddback" data-act="repClose"></div><div class="ddlist">'+[['all',a.all?A('Все компании'):A('Все мои компании')]].concat(scopedCompanies().map(([id,c])=>[id,c.name])).map(([id,l])=>'<button class="'+(S.repCompany===id?'on':'')+'" data-act="repSet" data-arg="'+id+'">'+esc(l)+'</button>').join('')+'</div>':'')+'</div></div>'+
+  A('<button class="btn primary" data-act="xlModal" style="align-self:flex-end">Скачать Excel</button></div>');
   if(S.period.mode==='month'&&a.all&&scopedCompanies().length){
     const ids=S.repCompany==='all'?scopedCompanies().map(([id])=>id):[S.repCompany];const allLocked=ids.every(id=>isLocked(id,S.period.month));
-    h+='<div class="row"><button class="btn sm'+(allLocked?'':' danger')+'" data-act="lockMonth" data-arg="'+(allLocked?'unlock':'lock')+'">'+(allLocked?'🔓 Открыть месяц для правок':'🔒 Закрыть месяц')+'</button><span class="muted small">'+(allLocked?'Месяц закрыт: смены и доплаты не меняются.':'После выплаты закройте месяц, чтобы ничего не поменялось задним числом.')+'</span></div>';
+    h+='<div class="row"><button class="btn sm'+(allLocked?'':' danger')+'" data-act="lockMonth" data-arg="'+(allLocked?'unlock':'lock')+'">'+(allLocked?A('🔓 Открыть месяц для правок'):A('🔒 Закрыть месяц'))+'</button><span class="muted small">'+(allLocked?A('Месяц закрыт: смены и доплаты не меняются.'):A('После выплаты закройте месяц, чтобы ничего не поменялось задним числом.'))+'</span></div>';
   }
   const tot={H:0,pay:0,travel:0,adj:0,total:0,b:{}};
-  h+='<section class="card"><h2>Часы и зарплата</h2><p class="muted small">Нажмите на работника, чтобы увидеть смены, доплаты и историю правок.</p><div class="tablewrap"><table><thead><tr><th>Работник</th><th>Часы</th>'+pcts.map(p=>'<th>'+p+'%</th>').join('')+'<th>За часы</th>'+(anyTravel?'<th>Проезд</th>':'')+(anyAdj?'<th>Доплаты / вычеты</th>':'')+'<th>К выплате</th></tr></thead><tbody>';
-  if(!rows.length)h+='<tr><td colspan="'+(pcts.length+5)+'" class="empty">Нет работников</td></tr>';
+  h+=A('<section class="card"><h2>Часы и зарплата</h2><p class="muted small">Нажмите на работника, чтобы увидеть смены, доплаты и историю правок.</p><div class="tablewrap"><table><thead><tr><th>Работник</th><th>Часы</th>')+pcts.map(p=>'<th>'+p+'%</th>').join('')+A('<th>За часы</th>')+(anyTravel?A('<th>Проезд</th>'):'')+(anyAdj?A('<th>Доплаты / вычеты</th>'):'')+A('<th>К выплате</th></tr></thead><tbody>');
+  if(!rows.length)h+='<tr><td colspan="'+(pcts.length+5)+A('" class="empty">Нет работников</td></tr>');
   rows.forEach(({id,w,m})=>{
     tot.H+=m.totalH;tot.pay+=m.pay;tot.travel+=m.travel;tot.adj+=m.plus-m.minus;tot.total+=m.total;pcts.forEach(p=>{tot.b[p]=(tot.b[p]||0)+(m.buckets[p]||0);});
     h+='<tr data-act="repWorker" data-arg="'+id+'"><td><b>'+esc(w.name)+'</b><br><span class="muted small">'+esc(w.code)+(S.repCompany==='all'?' · '+esc(companyName(w.companyId)):'')+'</span></td><td>'+hmH(m.totalH)+'</td>'+
     pcts.map(p=>'<td>'+(m.buckets[p]?hmH(m.buckets[p]):'<span class="muted">—</span>')+'</td>').join('')+
-    '<td>'+(m.rate?money(m.pay):'<span class="muted">нет ставки</span>')+'</td>'+(anyTravel?'<td>'+(m.travel?money(m.travel):'<span class="muted">—</span>')+'</td>':'')+(anyAdj?'<td>'+((m.plus||m.minus)?money(m.plus-m.minus):'<span class="muted">—</span>')+'</td>':'')+'<td><b>'+(m.rate||m.plus||m.minus?money(m.total):'—')+'</b></td></tr>';
+    '<td>'+(m.rate?money(m.pay):A('<span class="muted">нет ставки</span>'))+'</td>'+(anyTravel?'<td>'+(m.travel?money(m.travel):'<span class="muted">—</span>')+'</td>':'')+(anyAdj?'<td>'+((m.plus||m.minus)?money(m.plus-m.minus):'<span class="muted">—</span>')+'</td>':'')+'<td><b>'+(m.rate||m.plus||m.minus?money(m.total):'—')+'</b></td></tr>';
   });
-  h+='</tbody>'+(rows.length>1?'<tfoot><tr><td>Итого</td><td>'+hmH(tot.H)+'</td>'+pcts.map(p=>'<td>'+(tot.b[p]?hmH(tot.b[p]):'—')+'</td>').join('')+'<td>'+money(tot.pay)+'</td>'+(anyTravel?'<td>'+money(tot.travel)+'</td>':'')+(anyAdj?'<td>'+money(tot.adj)+'</td>':'')+'<td>'+money(tot.total)+'</td></tr></tfoot>':'')+'</table></div></section>';
+  h+='</tbody>'+(rows.length>1?A('<tfoot><tr><td>Итого</td><td>')+hmH(tot.H)+'</td>'+pcts.map(p=>'<td>'+(tot.b[p]?hmH(tot.b[p]):'—')+'</td>').join('')+'<td>'+money(tot.pay)+'</td>'+(anyTravel?'<td>'+money(tot.travel)+'</td>':'')+(anyAdj?'<td>'+money(tot.adj)+'</td>':'')+'<td>'+money(tot.total)+'</td></tr></tfoot>':'')+'</table></div></section>';
   return h;
 }
 function auditLine(x){
-  const acts={edit:'изменил(а) смену',add:'добавил(а) смену',delete:'удалил(а) смену',close:'закрыл(а) смену',approve:'одобрил(а) запрос',breaks:'изменил(а) перерыв'};
-  const f=v=>v?clock(v.start)+'–'+(v.end?clock(v.end):'…')+(v.breakMin?' (перерыв '+v.breakMin+' мин)':''):'—';
-  return '<div class="list-item" style="align-items:flex-start"><div class="grow"><div class="small"><b>'+esc(x.byName||'?')+'</b> '+(acts[x.action]||x.action)+' за '+fmtShort(x.day||dayKey(x.at))+'</div><div class="small tnum">'+(x.before?'<span class="muted">'+f(x.before)+'</span> → ':'')+f(x.after)+'</div></div><span class="muted small tnum">'+fmtDT(x.at)+'</span></div>';
+  const acts={edit:A('изменил(а) смену'),add:A('добавил(а) смену'),delete:A('удалил(а) смену'),close:A('закрыл(а) смену'),approve:A('одобрил(а) запрос'),breaks:A('изменил(а) перерыв')};
+  const f=v=>v?clock(v.start)+'–'+(v.end?clock(v.end):'…')+(v.breakMin?A(' (перерыв ')+v.breakMin+A(' мин)'):''):'—';
+  return '<div class="list-item" style="align-items:flex-start"><div class="grow"><div class="small"><b>'+esc(x.byName||'?')+'</b> '+(acts[x.action]||x.action)+A(' за ')+fmtShort(x.day||dayKey(x.at))+'</div><div class="small tnum">'+(x.before?'<span class="muted">'+f(x.before)+'</span> → ':'')+f(x.after)+'</div></div><span class="muted small tnum">'+fmtDT(x.at)+'</span></div>';
 }
 function adminWorkerDetail(wid){
   const w=S.workers[wid],[pa,pb]=periodRange(),m=calc(wid,pa,pb);const a=adm();
   const lockedAny=monthsBetween(pa,pb).some(mm=>isLocked(w.companyId,mm));
-  let h='<div class="row"><button class="btn sm" data-act="repBack">← Все работники</button></div>'+periodBar();
-  h+='<section class="card"><div class="row between"><div><h2>'+esc(w.name)+rolePill(w)+'</h2><p class="muted small">'+esc(companyName(w.companyId))+' · ID '+esc(w.code)+' · '+(w.rate?esc(w.rate)+' ₪/час':'ставка не указана')+(w.travel?' · проезд '+esc(w.travel)+' ₪/день':'')+'</p></div>'+(lockedAny?'<span class="pill grey">🔒 месяц закрыт</span>':'<button class="btn sm primary" data-act="shiftAdd" data-arg="'+wid+'">Добавить смену</button>')+'</div>'+
-  '<div class="row">'+(canEditPerson(w)?'<button class="btn sm" data-act="workerForm" data-arg="'+wid+'">Данные и пароль</button>':'')+(lockedAny?'':'<button class="btn sm" data-act="adjAdd" data-arg="'+wid+'">+ Доплата / вычет</button>')+'<button class="btn sm ghost" data-act="actAs" data-arg="'+wid+'">Открыть как работник</button>'+
-  (a.owner&&rightsOf(w)?'<button class="btn sm ghost" data-act="actAsAdmin" data-arg="'+wid+'">Открыть как '+(roleOf(w)==='super'?'главный админ':'старший')+'</button>':'')+'</div>'+
-  '<div class="tiles"><div class="tile"><span>Часы</span><b>'+hmH(m.totalH)+'</b></div><div class="tile"><span>Сверхурочно</span><b>'+hmH(m.otH)+'</b></div><div class="tile"><span>К выплате</span><b>'+(m.rate||m.plus||m.minus?money(m.total):'—')+'</b></div></div>'+
-  '<div class="paylines small"><span>За часы: <b>'+money(m.pay)+'</b></span>'+(m.travel?'<span>Проезд ('+m.travelDays+' дн.): <b>'+money(m.travel)+'</b></span>':'')+(m.plus?'<span>Доплаты: <b>+'+money(m.plus)+'</b></span>':'')+(m.minus?'<span>Вычеты: <b>−'+money(m.minus)+'</b></span>':'')+'</div>'+
+  let h=A('<div class="row"><button class="btn sm" data-act="repBack">← Все работники</button></div>')+periodBar();
+  h+='<section class="card"><div class="row between"><div><h2>'+esc(w.name)+rolePill(w)+'</h2><p class="muted small">'+esc(companyName(w.companyId))+' · ID '+esc(w.code)+' · '+(w.rate?esc(w.rate)+A(' ₪/час'):A('ставка не указана'))+(w.travel?A(' · проезд ')+esc(w.travel)+A(' ₪/день'):'')+'</p></div>'+(lockedAny?A('<span class="pill grey">🔒 месяц закрыт</span>'):'<button class="btn sm primary" data-act="shiftAdd" data-arg="'+wid+A('">Добавить смену</button>'))+'</div>'+
+  '<div class="row">'+(canEditPerson(w)?'<button class="btn sm" data-act="workerForm" data-arg="'+wid+A('">Данные и пароль</button>'):'')+(lockedAny?'':'<button class="btn sm" data-act="adjAdd" data-arg="'+wid+A('">+ Доплата / вычет</button>'))+'<button class="btn sm ghost" data-act="actAs" data-arg="'+wid+A('">Открыть как работник</button>')+
+  (a.owner&&rightsOf(w)?'<button class="btn sm ghost" data-act="actAsAdmin" data-arg="'+wid+A('">Открыть как ')+(roleOf(w)==='super'?A('главный админ'):A('старший'))+'</button>':'')+'</div>'+
+  A('<div class="tiles"><div class="tile"><span>Часы</span><b>')+hmH(m.totalH)+A('</b></div><div class="tile"><span>Сверхурочно</span><b>')+hmH(m.otH)+A('</b></div><div class="tile"><span>К выплате</span><b>')+(m.rate||m.plus||m.minus?money(m.total):'—')+'</b></div></div>'+
+  A('<div class="paylines small"><span>За часы: <b>')+money(m.pay)+'</b></span>'+(m.travel?A('<span>Проезд (')+m.travelDays+A(' дн.): <b>')+money(m.travel)+'</b></span>':'')+(m.plus?A('<span>Доплаты: <b>+')+money(m.plus)+'</b></span>':'')+(m.minus?A('<span>Вычеты: <b>−')+money(m.minus)+'</b></span>':'')+'</div>'+
   (Object.keys(m.buckets).length?'<div class="row">'+bucketPills(m.buckets)+'</div>':'')+'</section>';
   if(m.adj.length){
-    h+='<section class="card"><h2>Доплаты и вычеты</h2>'+m.adj.map(x=>{const lk=isLocked(x.companyId,x.month);return '<div class="list-item"><div class="grow"><div>'+t((ADJ_KINDS[x.kind]||{}).key||'kBonus')+(x.note?' · '+esc(x.note):'')+'</div><div class="muted small">'+fmtDay(x.date)+'</div></div><b class="tnum">'+(x.amount>=0?'+':'')+money(x.amount)+'</b>'+(lk?'':'<button class="btn sm ghost danger" data-act="adjDel" data-arg="'+x.id+'" aria-label="Удалить">✕</button>')+'</div>';}).join('')+'</section>';
+    h+=A('<section class="card"><h2>Доплаты и вычеты</h2>')+m.adj.map(x=>{const lk=isLocked(x.companyId,x.month);return '<div class="list-item"><div class="grow"><div>'+t((ADJ_KINDS[x.kind]||{}).key||'kBonus')+(x.note?' · '+esc(x.note):'')+'</div><div class="muted small">'+fmtDay(x.date)+'</div></div><b class="tnum">'+(x.amount>=0?'+':'')+money(x.amount)+'</b>'+(lk?'':'<button class="btn sm ghost danger" data-act="adjDel" data-arg="'+x.id+A('" aria-label="Удалить">✕</button>'))+'</div>';}).join('')+'</section>';
   }
-  h+='<section class="card"><h2>Смены</h2>';
-  if(!m.days.length)h+='<p class="empty">За этот период смен нет.</p>';
+  h+=A('<section class="card"><h2>Смены</h2>');
+  if(!m.days.length)h+=A('<p class="empty">За этот период смен нет.</p>');
   m.days.forEach(d=>{
-    h+='<div class="day"><div class="row between"><h3>'+fmtDay(d.key)+(d.hol?' <span class="pill warn">'+esc(d.hol.name||'праздник')+'</span>':'')+(d.dayRate>100?' <span class="pill warn">'+d.dayRate+'%</span>':'')+'</h3><span class="tnum"><b>'+hmH(d.H)+'</b>'+(m.rate?' · '+money(d.pay):'')+'</span></div>';
+    h+='<div class="day"><div class="row between"><h3>'+fmtDay(d.key)+(d.hol?' <span class="pill warn">'+esc(d.hol.name||A('праздник'))+'</span>':'')+(d.dayRate>100?' <span class="pill warn">'+d.dayRate+'%</span>':'')+'</h3><span class="tnum"><b>'+hmH(d.H)+'</b>'+(m.rate?' · '+money(d.pay):'')+'</span></div>';
     d.shifts.forEach(s=>{const x=shiftWork(s);const site=siteOf(s);const lk=shiftLocked(s);
-      h+='<div class="shift" style="align-items:flex-start"><div class="t"><div>'+clock(s.start)+' – '+(s.end?clock(s.end):'идёт')+(s.end?' <span class="muted">('+hm(x.ms)+')</span>':'')+(x.br>=60000?' <span class="muted small">· перерыв '+Math.round(x.br/60000)+' мин</span>':'')+(s.editedAt?' <span class="pill grey">исправлено</span>':'')+'</div>'+
-      '<div class="small">'+(site?'<span class="muted">'+esc(site.name)+'</span>':'')+geoPills(s)+'</div></div>'+(lk?'':'<button class="btn sm" data-act="shiftEdit" data-arg="'+s.id+'">Изменить</button>')+'</div>';});
+      h+='<div class="shift" style="align-items:flex-start"><div class="t"><div>'+clock(s.start)+' – '+(s.end?clock(s.end):A('идёт'))+(s.end?' <span class="muted">('+hm(x.ms)+')</span>':'')+(x.br>=60000?A(' <span class="muted small">· перерыв ')+Math.round(x.br/60000)+A(' мин</span>'):'')+(s.editedAt?A(' <span class="pill grey">исправлено</span>'):'')+'</div>'+
+      '<div class="small">'+(site?'<span class="muted">'+esc(site.name)+'</span>':'')+geoPills(s)+'</div></div>'+(lk?'':'<button class="btn sm" data-act="shiftEdit" data-arg="'+s.id+A('">Изменить</button>'))+'</div>';});
     h+='</div>';
   });
   h+='</section>';
   const hist=Object.values(S.audit).filter(x=>x.workerId===wid&&(x.day||dayKey(x.at))>=pa&&(x.day||dayKey(x.at))<=pb).sort((x,y)=>y.at-x.at);
-  h+='<section class="card"><h2>История изменений</h2>'+(hist.length?hist.slice(0,40).map(auditLine).join(''):'<p class="empty">Правок за этот период не было.</p>')+'</section>';
+  h+=A('<section class="card"><h2>История изменений</h2>')+(hist.length?hist.slice(0,40).map(auditLine).join(''):A('<p class="empty">Правок за этот период не было.</p>'))+'</section>';
   return h;
 }
 function adminRequests(){
@@ -664,66 +680,66 @@ function adminRequests(){
   const pend=all.filter(([,r])=>r.status==='pending'),done=all.filter(([,r])=>r.status!=='pending').slice(0,20);
   const item=([id,r],act)=>{const w=S.workers[r.workerId]||{};
     return '<div class="list-item" style="align-items:flex-start"><div class="grow"><div><b>'+esc(w.name||'?')+'</b> <span class="muted small">'+esc(w.code||'')+' · '+esc(companyName(w.companyId))+'</span></div>'+
-    '<div class="small">'+(r.type==='add'?'Просит добавить смену':'Просит исправить смену')+'</div>'+
-    (r.type==='edit'&&r.oldStart?'<div class="small muted tnum">Было: '+fmtDT(r.oldStart)+' – '+(r.oldEnd?clock(r.oldEnd):'…')+'</div>':'')+
-    '<div class="small tnum"><b>Стало: '+fmtDT(r.start)+' – '+clock(r.end)+'</b> ('+hm(r.end-r.start)+')</div>'+
+    '<div class="small">'+(r.type==='add'?A('Просит добавить смену'):A('Просит исправить смену'))+'</div>'+
+    (r.type==='edit'&&r.oldStart?A('<div class="small muted tnum">Было: ')+fmtDT(r.oldStart)+' – '+(r.oldEnd?clock(r.oldEnd):'…')+'</div>':'')+
+    A('<div class="small tnum"><b>Стало: ')+fmtDT(r.start)+' – '+clock(r.end)+'</b> ('+hm(r.end-r.start)+')</div>'+
     (r.comment?'<div class="small">«'+esc(r.comment)+'»</div>':'')+
-    (act?'<div class="row" style="margin-top:6px"><button class="btn sm primary" data-act="approve" data-arg="'+id+'">Одобрить</button><button class="btn sm danger" data-act="reject" data-arg="'+id+'">Отклонить</button></div>':'')+
+    (act?'<div class="row" style="margin-top:6px"><button class="btn sm primary" data-act="approve" data-arg="'+id+A('">Одобрить</button><button class="btn sm danger" data-act="reject" data-arg="')+id+A('">Отклонить</button></div>'):'')+
     '</div>'+(act?'':statusPill(r.status))+'</div>';};
-  let h='<section class="card"><h2>Ждут решения</h2>'+(pend.length?pend.map(x=>item(x,true)).join(''):'<p class="empty">Новых запросов нет.</p>')+'</section>';
-  if(done.length)h+='<section class="card"><h2>История</h2>'+done.map(x=>item(x,false)).join('')+'</section>';
+  let h=A('<section class="card"><h2>Ждут решения</h2>')+(pend.length?pend.map(x=>item(x,true)).join(''):A('<p class="empty">Новых запросов нет.</p>'))+'</section>';
+  if(done.length)h+=A('<section class="card"><h2>История</h2>')+done.map(x=>item(x,false)).join('')+'</section>';
   return h;
 }
 function adminWorkers(){
-  let h='<div class="row between"><p class="muted small">Работники регистрируются сами или вы добавляете их здесь.</p><button class="btn primary" data-act="workerForm">+ Работник</button></div>';
+  let h=A('<div class="row between"><p class="muted small">Работники регистрируются сами или вы добавляете их здесь.</p><button class="btn primary" data-act="workerForm">+ Работник</button></div>');
   const a=adm();const regs=pendingRegs().sort((x,y)=>String(x[1].code).localeCompare(String(y[1].code)));
   if(regs.length){
-    h+='<section class="card" style="border-color:var(--warn)"><div class="row between"><h2>Новые регистрации</h2><span class="pill warn">'+regs.length+'</span></div>'+
+    h+=A('<section class="card" style="border-color:var(--warn)"><div class="row between"><h2>Новые регистрации</h2><span class="pill warn">')+regs.length+'</span></div>'+
     regs.map(([id,w])=>'<div class="list-item"><div class="grow"><div><b class="tnum">'+esc(w.code)+'</b> · '+esc(w.name)+'</div><div class="muted small">'+esc(companyName(w.companyId))+(w.phone?' · '+esc(w.phone):'')+(w.email?' · '+esc(w.email):'')+'</div></div>'+
-    '<button class="btn sm primary" data-act="regAccept" data-arg="'+id+'">Принять</button><button class="btn sm danger" data-act="regReject" data-arg="'+id+'">Отклонить</button></div>').join('')+'</section>';
+    '<button class="btn sm primary" data-act="regAccept" data-arg="'+id+A('">Принять</button><button class="btn sm danger" data-act="regReject" data-arg="')+id+A('">Отклонить</button></div>')).join('')+'</section>';
   }
   const groups=scopedCompanies().map(([cid,c])=>[cid,c.name]);
   const orphans=a.all?sortedWorkers().filter(([,w])=>!isPendingReg(w)&&!S.companies[w.companyId]):[];
   groups.forEach(([cid,name])=>{
     const ws=sortedWorkers().filter(([,w])=>w.companyId===cid&&!isPendingReg(w));
-    h+='<section class="card"><div class="row between"><h2>'+esc(name)+'</h2><span class="pill grey">'+ws.length+'</span></div>'+(ws.length?ws.map(workerRow).join(''):'<p class="empty">Пока нет работников</p>')+'</section>';
+    h+='<section class="card"><div class="row between"><h2>'+esc(name)+'</h2><span class="pill grey">'+ws.length+'</span></div>'+(ws.length?ws.map(workerRow).join(''):A('<p class="empty">Пока нет работников</p>'))+'</section>';
   });
-  if(orphans.length)h+='<section class="card"><h2>Без компании</h2>'+orphans.map(workerRow).join('')+'</section>';
-  if(!groups.length&&!orphans.length)h+='<p class="empty">Сначала добавьте компанию.</p>';
+  if(orphans.length)h+=A('<section class="card"><h2>Без компании</h2>')+orphans.map(workerRow).join('')+'</section>';
+  if(!groups.length&&!orphans.length)h+=A('<p class="empty">Сначала добавьте компанию.</p>');
   return h;
 }
 function workerRow([id,w]){
-  return '<div class="list-item"><div class="grow"><div><b class="tnum">'+esc(w.code)+'</b> · '+esc(w.name)+rolePill(w)+(w.active===false?' <span class="pill stop">не работает</span>':'')+(w.status==='rejected'?' <span class="pill stop">отклонён</span>':'')+'</div><div class="muted small tnum">'+[w.phone,w.email,w.rate?w.rate+' ₪/час':'без ставки',w.travel?'проезд '+w.travel+' ₪':''].filter(Boolean).map(esc).join(' · ')+'</div></div>'+
-  '<button class="btn sm primary" data-act="openTable" data-arg="'+id+'">Табель</button>'+(canEditPerson(w)?'<button class="btn sm" data-act="workerForm" data-arg="'+id+'">Изменить</button>':'')+'</div>';
+  return '<div class="list-item"><div class="grow"><div><b class="tnum">'+esc(w.code)+'</b> · '+esc(w.name)+rolePill(w)+(w.active===false?A(' <span class="pill stop">не работает</span>'):'')+(w.status==='rejected'?A(' <span class="pill stop">отклонён</span>'):'')+'</div><div class="muted small tnum">'+[w.phone,w.email,w.rate?w.rate+A(' ₪/час'):A('без ставки'),w.travel?A('проезд ')+w.travel+' ₪':''].filter(Boolean).map(esc).join(' · ')+'</div></div>'+
+  '<button class="btn sm primary" data-act="openTable" data-arg="'+id+A('">Табель</button>')+(canEditPerson(w)?'<button class="btn sm" data-act="workerForm" data-arg="'+id+A('">Изменить</button>'):'')+'</div>';
 }
 function holidaysCard(){
   const all=Object.entries(S.holidays).sort((a,b)=>a[0]<b[0]?-1:1);
   const upcoming=all.filter(([k])=>k>=addDays(today,-7));
   const list=S.showAllHol?all:upcoming.slice(0,10);
-  const coNames=v=>Array.isArray(v.companies)?v.companies.map(companyName).join(', '):'все компании';
-  return '<section class="card"><div class="row between"><h2>Праздники и особые дни</h2><span class="pill grey">'+all.length+'</span></div>'+
-  '<p class="muted small">Отметьте день, за который платят больше: название и процент оплаты. Можно выбрать, к каким компаниям он относится.</p>'+
-  '<div class="row"><button class="btn sm primary" data-act="holAdd">+ Добавить день</button>'+(all.length?'<button class="btn sm ghost danger" data-act="holClear">Удалить все</button>':'')+'</div>'+
-  (list.length?list.map(([k,v])=>'<div class="list-item"><div class="grow"><div>'+fmtDay(k)+' · '+esc(v.name||'Праздник')+' · <b>'+(Number(v.pct)>0?v.pct+'%':(v.type==='eve'?'ставка кануна':'ставка праздника'))+'</b></div><div class="muted small">'+esc(coNames(v))+'</div></div><button class="btn sm ghost danger" data-act="holDel" data-arg="'+k+'" aria-label="Удалить">✕</button></div>').join(''):'<p class="empty">Пока нет отмеченных дней.</p>')+
-  (all.length>list.length||S.showAllHol?'<button class="btn sm ghost" data-act="holAll">'+(S.showAllHol?'Только ближайшие':'Показать все ('+all.length+')')+'</button>':'')+'</section>';
+  const coNames=v=>Array.isArray(v.companies)?v.companies.map(companyName).join(', '):A('все компании');
+  return A('<section class="card"><div class="row between"><h2>Праздники и особые дни</h2><span class="pill grey">')+all.length+'</span></div>'+
+  A('<p class="muted small">Отметьте день, за который платят больше: название и процент оплаты. Можно выбрать, к каким компаниям он относится.</p>')+
+  A('<div class="row"><button class="btn sm primary" data-act="holAdd">+ Добавить день</button>')+(all.length?A('<button class="btn sm ghost danger" data-act="holClear">Удалить все</button>'):'')+'</div>'+
+  (list.length?list.map(([k,v])=>'<div class="list-item"><div class="grow"><div>'+fmtDay(k)+' · '+esc(v.name||A('Праздник'))+' · <b>'+(Number(v.pct)>0?v.pct+'%':(v.type==='eve'?A('ставка кануна'):A('ставка праздника')))+'</b></div><div class="muted small">'+esc(coNames(v))+'</div></div><button class="btn sm ghost danger" data-act="holDel" data-arg="'+k+A('" aria-label="Удалить">✕</button></div>')).join(''):A('<p class="empty">Пока нет отмеченных дней.</p>'))+
+  (all.length>list.length||S.showAllHol?'<button class="btn sm ghost" data-act="holAll">'+(S.showAllHol?A('Только ближайшие'):A('Показать все (')+all.length+')')+'</button>':'')+'</section>';
 }
 function adminCompanies(){
   const a=adm();
-  let h='<div class="row between"><p class="muted small">У каждой компании свои правила переработок, доплат и объекты.</p>'+(a.all?'<button class="btn primary" data-act="companyForm">+ Компания</button>':'')+'</div>';
+  let h=A('<div class="row between"><p class="muted small">У каждой компании свои правила переработок, доплат и объекты.</p>')+(a.all?A('<button class="btn primary" data-act="companyForm">+ Компания</button>'):'')+'</div>';
   const cs=scopedCompanies();
   const miss=a.owner?presetMissing():[];
-  if(miss.length)h+='<section class="card"><h2>Ваши компании</h2><p class="small">Добавить одним нажатием: '+miss.map(x=>esc(x[0])+' <span class="muted">('+(x[1]==='week'?'неделя':'месяц')+')</span>').join(', ')+'.</p><p class="muted small">Уже существующие компании с таким названием пропускаются. Правила переработок потом можно поправить в «Изменить».</p><div class="row"><button class="btn primary" data-act="presetAdd">Добавить '+miss.length+' '+plural(miss.length,'компанию','компании','компаний')+'</button></div></section>';
-  if(!cs.length)h+='<p class="empty">Компаний пока нет.</p>';
+  if(miss.length)h+=A('<section class="card"><h2>Ваши компании</h2><p class="small">Добавить одним нажатием: ')+miss.map(x=>esc(x[0])+' <span class="muted">('+(x[1]==='week'?A('неделя'):A('месяц'))+')</span>').join(', ')+A('.</p><p class="muted small">Уже существующие компании с таким названием пропускаются. Правила переработок потом можно поправить в «Изменить».</p><div class="row"><button class="btn primary" data-act="presetAdd">Добавить ')+miss.length+' '+plural(miss.length,A('компанию'),A('компании'),A('компаний'))+'</button></div></section>';
+  if(!cs.length)h+=A('<p class="empty">Компаний пока нет.</p>');
   cs.forEach(([id,c])=>{const r=rulesOf(c);const n=Object.values(S.workers).filter(w=>w.companyId===id).length;
-    const special=r.day.map((p,i)=>p!==100?WD[i]+' '+p+'%':null).filter(Boolean).join(', ');
+    const special=r.day.map((p,i)=>p!==100?WDL()[i]+' '+p+'%':null).filter(Boolean).join(', ');
     const mg=managersOf(id).map(w=>esc(w.name)).join(', ');const sites=c.sites||[];
-    h+='<section class="card"><div class="row between"><h2>'+esc(c.name)+'</h2>'+(a.all?'<div class="row"><button class="btn sm" data-act="sitesForm" data-arg="'+id+'">Объекты</button><button class="btn sm" data-act="companyForm" data-arg="'+id+'">Изменить</button></div>':'')+'</div>'+
-    '<p class="small"><b>Зарплата:</b> '+(c.payPeriod==='week'?'каждую неделю (недельный и месячный отчёт)':'раз в месяц')+' · отчёт '+(c.lang==='he'?'на иврите':'на русском')+'</p>'+
-    '<p class="small"><b>Старшие:</b> '+(mg||'<span class="muted">не назначены</span>')+'</p>'+
-    '<p class="small"><b>Объекты:</b> '+(sites.length?sites.map(s=>esc(s.name)+(isFinite(s.lat)?' 📍':'')).join(', '):'<span class="muted">не добавлены</span>')+'</p>'+
-    '<p class="small">Норма '+r.norm+' ч в день, дальше '+r.ot1Hours+' ч по '+r.ot1+'%, потом '+r.ot2+'%.</p>'+
-    '<p class="small">'+(special?'Доплата по дням: '+special+'.':'Все дни по 100%.')+(r.breakMin?' Перерыв '+r.breakMin+' мин вычитается из смен длиннее 6 ч, если работник не отмечал перерыв.':'')+'</p>'+
-    '<p class="muted small">'+n+' '+plural(n,'работник','работника','работников')+' · смена считается забытой после '+r.maxShiftH+' ч</p></section>';
+    h+='<section class="card"><div class="row between"><h2>'+esc(c.name)+'</h2>'+(a.all?'<div class="row"><button class="btn sm" data-act="sitesForm" data-arg="'+id+A('">Объекты</button><button class="btn sm" data-act="companyForm" data-arg="')+id+A('">Изменить</button></div>'):'')+'</div>'+
+    A('<p class="small"><b>Зарплата:</b> ')+(c.payPeriod==='week'?A('каждую неделю (недельный и месячный отчёт)'):A('раз в месяц'))+A(' · отчёт ')+(c.lang==='he'?A('на иврите'):A('на русском'))+'</p>'+
+    A('<p class="small"><b>Старшие:</b> ')+(mg||A('<span class="muted">не назначены</span>'))+'</p>'+
+    A('<p class="small"><b>Объекты:</b> ')+(sites.length?sites.map(s=>esc(s.name)+(isFinite(s.lat)?' 📍':'')).join(', '):A('<span class="muted">не добавлены</span>'))+'</p>'+
+    A('<p class="small">Норма ')+r.norm+A(' ч в день, дальше ')+r.ot1Hours+A(' ч по ')+r.ot1+A('%, потом ')+r.ot2+'%.</p>'+
+    '<p class="small">'+(special?A('Доплата по дням: ')+special+'.':A('Все дни по 100%.'))+(r.breakMin?A(' Перерыв ')+r.breakMin+A(' мин вычитается из смен длиннее 6 ч, если работник не отмечал перерыв.'):'')+'</p>'+
+    '<p class="muted small">'+n+' '+plural(n,A('работник'),A('работника'),A('работников'))+A(' · смена считается забытой после ')+r.maxShiftH+A(' ч</p></section>');
   });
   if(a.all)h+=holidaysCard();
   return h;
@@ -733,58 +749,58 @@ function adminCompanies(){
 function openModal(html){$modal.innerHTML='<div class="sheet" role="dialog" aria-modal="true">'+html+'</div>';$modal.hidden=false;const f=$modal.querySelector('input,select,textarea');if(f&&window.innerWidth>600)f.focus();}
 function closeModal(){$modal.hidden=true;$modal.innerHTML='';}
 const formWrap=(name,attrs,inner)=>'<form data-form="'+name+'" '+(attrs||'')+' style="display:flex;flex-direction:column;gap:12px">'+inner+'</form>';
-const btnRow=(ok,extra)=>'<div class="row"><button class="btn primary" type="submit">'+ok+'</button><button class="btn" type="button" data-act="closeModal">'+(S.view==='admin'?'Отмена':t('cancel'))+'</button>'+(extra||'')+'</div>';
+const btnRow=(ok,extra)=>'<div class="row"><button class="btn primary" type="submit">'+ok+'</button><button class="btn" type="button" data-act="closeModal">'+(S.view==='admin'?A('Отмена'):t('cancel'))+'</button>'+(extra||'')+'</div>';
 
 function companyModal(id){
   const c=id?S.companies[id]:{name:''};const r=rulesOf(c);
-  openModal(formWrap('company','data-id="'+(id||'')+'"','<h2>'+(id?'Компания':'Новая компания')+'</h2>'+
-  fld('cname','Название','<input id="cname" name="name" required value="'+esc(c.name)+'">')+
-  '<div class="grid2">'+fld('cpay','Зарплата','<select id="cpay" name="payPeriod"><option value="month"'+(c.payPeriod!=='week'?' selected':'')+'>Раз в месяц</option><option value="week"'+(c.payPeriod==='week'?' selected':'')+'>Каждую неделю</option></select>')+
-  fld('clang','Язык отчёта Excel','<select id="clang" name="lang"><option value="ru"'+(c.lang!=='he'?' selected':'')+'>Русский</option><option value="he"'+(c.lang==='he'?' selected':'')+'>עברית</option></select>')+'</div>'+
-  '<div class="grid2">'+fld('cnorm','Обычных часов в день','<input id="cnorm" name="norm" type="number" step="0.1" min="0" value="'+r.norm+'">')+fld('cbreak','Авто-перерыв, мин (смены > 6 ч)','<input id="cbreak" name="breakMin" type="number" min="0" value="'+r.breakMin+'">')+'</div>'+
-  '<div class="grid2">'+fld('cot1h','Первые часы переработки','<input id="cot1h" name="ot1Hours" type="number" step="0.5" min="0" value="'+r.ot1Hours+'">')+fld('cot1','…оплата, %','<input id="cot1" name="ot1" type="number" min="100" value="'+r.ot1+'">')+'</div>'+
-  '<div class="grid2">'+fld('cot2','Дальше переработка, %','<input id="cot2" name="ot2" type="number" min="100" value="'+r.ot2+'">')+fld('cmax','Смена «забыта» после, ч','<input id="cmax" name="maxShiftH" type="number" min="1" max="48" value="'+r.maxShiftH+'">')+'</div>'+
-  '<div class="field"><label>Оплата по дням недели, %</label><div class="grid7">'+WD.map((d,i)=>'<div class="field" style="gap:2px"><label for="cd'+i+'" style="text-align:center">'+d+'</label><input id="cd'+i+'" name="d'+i+'" type="number" min="0" value="'+r.day[i]+'"></div>').join('')+'</div>'+
-  '<p class="muted small">Если день, праздник и переработка дают разный процент, берётся больший. Праздники отмечаются внизу вкладки «Компании».</p></div>'+
-  btnRow('Сохранить',id?'<div style="flex:1"></div><button class="btn danger" type="button" data-act="companyDelete" data-arg="'+id+'">Удалить</button>':'')));
+  openModal(formWrap('company','data-id="'+(id||'')+'"','<h2>'+(id?A('Компания'):A('Новая компания'))+'</h2>'+
+  fld('cname',A('Название'),'<input id="cname" name="name" required value="'+esc(c.name)+'">')+
+  '<div class="grid2">'+fld('cpay',A('Зарплата'),'<select id="cpay" name="payPeriod"><option value="month"'+(c.payPeriod!=='week'?' selected':'')+A('>Раз в месяц</option><option value="week"')+(c.payPeriod==='week'?' selected':'')+A('>Каждую неделю</option></select>'))+
+  fld('clang',A('Язык отчёта Excel'),'<select id="clang" name="lang"><option value="ru"'+(c.lang!=='he'?' selected':'')+A('>Русский</option><option value="he"')+(c.lang==='he'?' selected':'')+'>עברית</option></select>')+'</div>'+
+  '<div class="grid2">'+fld('cnorm',A('Обычных часов в день'),'<input id="cnorm" name="norm" type="number" step="0.1" min="0" value="'+r.norm+'">')+fld('cbreak',A('Авто-перерыв, мин (смены > 6 ч)'),'<input id="cbreak" name="breakMin" type="number" min="0" value="'+r.breakMin+'">')+'</div>'+
+  '<div class="grid2">'+fld('cot1h',A('Первые часы переработки'),'<input id="cot1h" name="ot1Hours" type="number" step="0.5" min="0" value="'+r.ot1Hours+'">')+fld('cot1',A('…оплата, %'),'<input id="cot1" name="ot1" type="number" min="100" value="'+r.ot1+'">')+'</div>'+
+  '<div class="grid2">'+fld('cot2',A('Дальше переработка, %'),'<input id="cot2" name="ot2" type="number" min="100" value="'+r.ot2+'">')+fld('cmax',A('Смена «забыта» после, ч'),'<input id="cmax" name="maxShiftH" type="number" min="1" max="48" value="'+r.maxShiftH+'">')+'</div>'+
+  A('<div class="field"><label>Оплата по дням недели, %</label><div class="grid7">')+WDL().map((d,i)=>'<div class="field" style="gap:2px"><label for="cd'+i+'" style="text-align:center">'+d+'</label><input id="cd'+i+'" name="d'+i+'" type="number" min="0" value="'+r.day[i]+'"></div>').join('')+'</div>'+
+  A('<p class="muted small">Если день, праздник и переработка дают разный процент, берётся больший. Праздники отмечаются внизу вкладки «Компании».</p></div>')+
+  btnRow(A('Сохранить'),id?'<div style="flex:1"></div><button class="btn danger" type="button" data-act="companyDelete" data-arg="'+id+A('">Удалить</button>'):'')));
 }
 let siteDraft=null;
 function sitesModal(cid){
   if(cid){siteDraft={cid,sites:JSON.parse(JSON.stringify((S.companies[cid]||{}).sites||[]))};}
   const d=siteDraft;
-  openModal(formWrap('sites','','<h2>Объекты · '+esc(companyName(d.cid))+'</h2><p class="muted small">Работник выбирает объект при начале смены. Если задать место, вы увидите, отметился ли он рядом с объектом. Чтобы задать место, нажмите 📍, находясь на объекте.</p>'+
+  openModal(formWrap('sites','',A('<h2>Объекты · ')+esc(companyName(d.cid))+A('</h2><p class="muted small">Работник выбирает объект при начале смены. Если задать место, вы увидите, отметился ли он рядом с объектом. Чтобы задать место, нажмите 📍, находясь на объекте.</p>')+
   (d.sites.length?d.sites.map((s,i)=>'<div class="card" style="padding:12px;gap:8px">'+
-    fld('sn'+i,'Название','<input id="sn'+i+'" data-site="'+i+'" data-k="name" value="'+esc(s.name)+'" required>')+
-    '<div class="row" style="align-items:flex-end">'+fld('sr'+i,'Радиус, м','<input id="sr'+i+'" data-site="'+i+'" data-k="radius" type="number" min="20" value="'+esc(s.radius||200)+'" style="width:110px">')+
-    '<button class="btn sm" type="button" data-act="siteHere" data-arg="'+i+'">📍 '+(isFinite(s.lat)?'Обновить место':'Задать место здесь')+'</button>'+
-    '<button class="btn sm danger" type="button" data-act="siteDel" data-arg="'+i+'">Удалить</button></div>'+
-    (isFinite(s.lat)?'<a class="small" href="'+mapUrl(s)+'" target="_blank" rel="noopener">Место задано · открыть на карте</a>':'<span class="muted small">Место не задано</span>')+'</div>').join(''):'<p class="empty">Объектов пока нет.</p>')+
-  '<button class="btn" type="button" data-act="siteNew">+ Добавить объект</button>'+btnRow('Сохранить')));
+    fld('sn'+i,A('Название'),'<input id="sn'+i+'" data-site="'+i+'" data-k="name" value="'+esc(s.name)+'" required>')+
+    '<div class="row" style="align-items:flex-end">'+fld('sr'+i,A('Радиус, м'),'<input id="sr'+i+'" data-site="'+i+'" data-k="radius" type="number" min="20" value="'+esc(s.radius||200)+'" style="width:110px">')+
+    '<button class="btn sm" type="button" data-act="siteHere" data-arg="'+i+'">📍 '+(isFinite(s.lat)?A('Обновить место'):A('Задать место здесь'))+'</button>'+
+    '<button class="btn sm danger" type="button" data-act="siteDel" data-arg="'+i+A('">Удалить</button></div>')+
+    (isFinite(s.lat)?'<a class="small" href="'+mapUrl(s)+A('" target="_blank" rel="noopener">Место задано · открыть на карте</a>'):A('<span class="muted small">Место не задано</span>'))+'</div>').join(''):A('<p class="empty">Объектов пока нет.</p>'))+
+  A('<button class="btn" type="button" data-act="siteNew">+ Добавить объект</button>')+btnRow(A('Сохранить'))));
 }
 function holModal(){
   const cs=sortedCompanies();
-  openModal(formWrap('hol','','<h2>Праздник / особый день</h2>'+fld('hd','Дата','<input id="hd" name="date" type="date" required value="'+today+'">')+fld('hn','Название','<input id="hn" name="name" placeholder="Например: Песах">')+
-  fld('hp','Оплата за этот день, %','<input id="hp" name="pct" type="number" min="100" max="400" step="5" required value="150">')+
-  '<div class="field"><label>Для каких компаний</label>'+cs.map(([id,c])=>'<label class="row" style="gap:8px;font-weight:400"><input type="checkbox" name="co" value="'+id+'" checked style="width:auto"> '+esc(c.name)+'</label>').join('')+'</div>'+
-  '<p class="muted small">Если в этот день и так платят больше (например, суббота 150% или переработка), берётся больший процент.</p>'+btnRow('Добавить')));
+  openModal(formWrap('hol','',A('<h2>Праздник / особый день</h2>')+fld('hd',A('Дата'),'<input id="hd" name="date" type="date" required value="'+today+'">')+fld('hn',A('Название'),A('<input id="hn" name="name" placeholder="Например: Песах">'))+
+  fld('hp',A('Оплата за этот день, %'),'<input id="hp" name="pct" type="number" min="100" max="400" step="5" required value="150">')+
+  A('<div class="field"><label>Для каких компаний</label>')+cs.map(([id,c])=>'<label class="row" style="gap:8px;font-weight:400"><input type="checkbox" name="co" value="'+id+'" checked style="width:auto"> '+esc(c.name)+'</label>').join('')+'</div>'+
+  A('<p class="muted small">Если в этот день и так платят больше (например, суббота 150% или переработка), берётся больший процент.</p>')+btnRow(A('Добавить'))));
 }
 function workerModal(id){
   const w=id?S.workers[id]:{code:'',name:'',phone:'',email:'',companyId:(S.repCompany!=='all'&&S.repCompany)||(scopedCompanies()[0]||[])[0]||'',rate:'',travel:'',active:true};
-  if(!scopedCompanies().length){toast('Сначала добавьте компанию');return;}
+  if(!scopedCompanies().length){toast(A('Сначала добавьте компанию'));return;}
   const a=adm();const role=roleOf(w);const man=Array.isArray(w.manages)?w.manages:[];
   const canReset=id&&w.authEmail&&!isPhoneEmail(w.authEmail);
-  const roleBlock=!a.roles||id===S.uid?'':'<fieldset style="border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;margin:0"><legend style="font-weight:600;padding:0 4px">Права</legend>'+
-    [['worker','Работник','отмечает своё время'],['manager','Старший','управляет выбранными компаниями'],['super','Главный админ','видит всё, как вы']].map(([v,l,d])=>'<label class="row" style="color:var(--ink);font-size:15px;gap:8px"><input type="radio" name="role" value="'+v+'" style="width:auto"'+(role===v?' checked':'')+' data-rolepick> <b>'+l+'</b> <span class="muted small">'+d+'</span></label>').join('')+
-    '<div id="manBox" class="field"'+(role==='manager'?'':' hidden')+'><label>Компании старшего</label>'+sortedCompanies().map(([cid,c])=>'<label class="row" style="color:var(--ink);font-size:15px;gap:8px"><input type="checkbox" name="manages" value="'+cid+'" style="width:auto"'+(man.includes(cid)?' checked':'')+'> '+esc(c.name)+'</label>').join('')+'</div></fieldset>';
-  openModal(formWrap('worker','data-id="'+(id||'')+'"','<h2>'+(id?'Работник':'Новый работник')+(id?' <span class="muted tnum" style="font-weight:400">ID '+esc(w.code)+'</span>':'')+'</h2>'+
-  fld('wname','Имя и фамилия','<input id="wname" name="name" required value="'+esc(w.name)+'">')+
-  '<div class="grid2">'+fld('wphone','Телефон','<input id="wphone" name="phone" type="tel" value="'+esc(w.phone)+'">')+fld('wemail','Email','<input id="wemail" name="email" type="email" autocapitalize="off" value="'+esc(w.email||'')+'"'+(id?' readonly':'')+'>')+'</div>'+
-  (id?'':fld('wpin','Пароль для входа (минимум 6 символов)','<input id="wpin" name="pass" type="text" autocomplete="off" minlength="6" required>')+'<p class="muted small">ID присвоится автоматически. Сообщите работнику ID и пароль.</p>')+
-  (id?(canReset?'<div class="row"><button class="btn sm" type="button" data-act="sendReset" data-arg="'+id+'">Отправить письмо для смены пароля</button></div>':'<p class="muted small">Работник входит по телефону. Восстановить забытый пароль можно только через email, поэтому лучше попросить его указать email.</p>'):'')+
-  fld('wcomp','Компания','<select id="wcomp" name="companyId">'+scopedCompanies().map(([cid,c])=>'<option value="'+cid+'"'+(cid===w.companyId?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select>')+
-  '<div class="grid2">'+fld('wrate','Ставка, ₪ в час','<input id="wrate" name="rate" type="number" step="0.01" min="0" value="'+esc(w.rate)+'">')+fld('wtravel','Проезд, ₪ за рабочий день','<input id="wtravel" name="travel" type="number" step="0.01" min="0" value="'+esc(w.travel||'')+'">')+'</div>'+
-  roleBlock+'<label class="row" style="color:var(--ink);font-size:15px"><input type="checkbox" name="active" style="width:auto"'+(w.active!==false||isPendingReg(w)?' checked':'')+'> Работает сейчас'+(isPendingReg(w)?' (регистрация будет принята)':'')+'</label>'+
-  '<p class="err" id="werr"></p>'+btnRow('Сохранить')));
+  const roleBlock=!a.roles||id===S.uid?'':A('<fieldset style="border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;margin:0"><legend style="font-weight:600;padding:0 4px">Права</legend>')+
+    [['worker',A('Работник'),A('отмечает своё время')],['manager',A('Старший'),A('управляет выбранными компаниями')],['super',A('Главный админ'),A('видит всё, как вы')]].map(([v,l,d])=>'<label class="row" style="color:var(--ink);font-size:15px;gap:8px"><input type="radio" name="role" value="'+v+'" style="width:auto"'+(role===v?' checked':'')+' data-rolepick> <b>'+l+'</b> <span class="muted small">'+d+'</span></label>').join('')+
+    '<div id="manBox" class="field"'+(role==='manager'?'':' hidden')+A('><label>Компании старшего</label>')+sortedCompanies().map(([cid,c])=>'<label class="row" style="color:var(--ink);font-size:15px;gap:8px"><input type="checkbox" name="manages" value="'+cid+'" style="width:auto"'+(man.includes(cid)?' checked':'')+'> '+esc(c.name)+'</label>').join('')+'</div></fieldset>';
+  openModal(formWrap('worker','data-id="'+(id||'')+'"','<h2>'+(id?A('Работник'):A('Новый работник'))+(id?' <span class="muted tnum" style="font-weight:400">ID '+esc(w.code)+'</span>':'')+'</h2>'+
+  fld('wname',A('Имя и фамилия'),'<input id="wname" name="name" required value="'+esc(w.name)+'">')+
+  '<div class="grid2">'+fld('wphone',A('Телефон'),'<input id="wphone" name="phone" type="tel" value="'+esc(w.phone)+'">')+fld('wemail','Email','<input id="wemail" name="email" type="email" autocapitalize="off" value="'+esc(w.email||'')+'"'+(id?' readonly':'')+'>')+'</div>'+
+  (id?'':fld('wpin',A('Пароль для входа (минимум 6 символов)'),'<input id="wpin" name="pass" type="text" autocomplete="off" minlength="6" required>')+A('<p class="muted small">ID присвоится автоматически. Сообщите работнику ID и пароль.</p>'))+
+  (id?(canReset?'<div class="row"><button class="btn sm" type="button" data-act="sendReset" data-arg="'+id+A('">Отправить письмо для смены пароля</button></div>'):A('<p class="muted small">Работник входит по телефону. Восстановить забытый пароль можно только через email, поэтому лучше попросить его указать email.</p>')):'')+
+  fld('wcomp',A('Компания'),'<select id="wcomp" name="companyId">'+scopedCompanies().map(([cid,c])=>'<option value="'+cid+'"'+(cid===w.companyId?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select>')+
+  '<div class="grid2">'+fld('wrate',A('Ставка, ₪ в час'),'<input id="wrate" name="rate" type="number" step="0.01" min="0" value="'+esc(w.rate)+'">')+fld('wtravel',A('Проезд, ₪ за рабочий день'),'<input id="wtravel" name="travel" type="number" step="0.01" min="0" value="'+esc(w.travel||'')+'">')+'</div>'+
+  roleBlock+'<label class="row" style="color:var(--ink);font-size:15px"><input type="checkbox" name="active" style="width:auto"'+(w.active!==false||isPendingReg(w)?' checked':'')+A('> Работает сейчас')+(isPendingReg(w)?A(' (регистрация будет принята)'):'')+'</label>'+
+  '<p class="err" id="werr"></p>'+btnRow(A('Сохранить'))));
 }
 function regModal(){
   const cs=sortedCompanies();
@@ -801,13 +817,13 @@ function shiftModal(sid,wid){
   const s=sid?S.shifts[sid]:null;wid=s?s.workerId:wid;const w=S.workers[wid]||{};const c=S.companies[s?s.companyId:w.companyId]||{};
   const st=s?s.start:new Date(new Date().setHours(8,0,0,0)).getTime();const en=s?s.end:new Date(new Date().setHours(17,0,0,0)).getTime();
   const brMin=s?Math.round(shiftWork(s,s.end||Date.now()).br/60000):0;const sites=c.sites||[];
-  openModal(formWrap('shift','data-id="'+(sid||'')+'" data-worker="'+wid+'"','<h2>'+(sid?'Изменить смену':'Добавить смену')+'</h2><p class="muted">'+esc(w.name)+' · '+esc(w.code)+'</p>'+
-  fld('sstart','Начало','<input id="sstart" name="start" type="datetime-local" required value="'+toInput(st)+'">')+
-  fld('send','Конец (пусто — смена ещё идёт)','<input id="send" name="end" type="datetime-local" value="'+(en?toInput(en):'')+'">')+
-  '<div class="grid2">'+fld('sbreak','Перерывы, мин','<input id="sbreak" name="breakMin" type="number" min="0" value="'+brMin+'">')+
-  (sites.length?fld('ssite','Объект','<select id="ssite" name="siteId"><option value="">—</option>'+sites.map(x=>'<option value="'+esc(x.id)+'"'+(s&&s.siteId===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'):'<span></span>')+'</div>'+
-  '<p class="muted small">Все изменения попадают в историю правок.</p><p class="err" id="serr"></p>'+
-  btnRow('Сохранить',sid?'<div style="flex:1"></div><button class="btn danger" type="button" data-act="shiftDelete" data-arg="'+sid+'">Удалить</button>':'')));
+  openModal(formWrap('shift','data-id="'+(sid||'')+'" data-worker="'+wid+'"','<h2>'+(sid?A('Изменить смену'):A('Добавить смену'))+'</h2><p class="muted">'+esc(w.name)+' · '+esc(w.code)+'</p>'+
+  fld('sstart',A('Начало'),'<input id="sstart" name="start" type="datetime-local" required value="'+toInput(st)+'">')+
+  fld('send',A('Конец (пусто — смена ещё идёт)'),'<input id="send" name="end" type="datetime-local" value="'+(en?toInput(en):'')+'">')+
+  '<div class="grid2">'+fld('sbreak',A('Перерывы, мин'),'<input id="sbreak" name="breakMin" type="number" min="0" value="'+brMin+'">')+
+  (sites.length?fld('ssite',A('Объект'),'<select id="ssite" name="siteId"><option value="">—</option>'+sites.map(x=>'<option value="'+esc(x.id)+'"'+(s&&s.siteId===x.id?' selected':'')+'>'+esc(x.name)+'</option>').join('')+'</select>'):'<span></span>')+'</div>'+
+  A('<p class="muted small">Все изменения попадают в историю правок.</p><p class="err" id="serr"></p>')+
+  btnRow(A('Сохранить'),sid?'<div style="flex:1"></div><button class="btn danger" type="button" data-act="shiftDelete" data-arg="'+sid+A('">Удалить</button>'):'')));
 }
 function requestModal(sid){
   const s=sid?S.shifts[sid]:null;
@@ -820,10 +836,10 @@ function requestModal(sid){
 }
 function adjModal(wid){
   const w=S.workers[wid]||{};const [pa,pb]=periodRange();const def=today>=pa&&today<=pb?today:pb;
-  openModal(formWrap('adj','data-worker="'+wid+'"','<h2>Доплата или вычет</h2><p class="muted">'+esc(w.name)+' · '+esc(w.code)+'</p>'+
-  fld('ak','Тип','<select id="ak" name="kind">'+Object.entries(ADJ_KINDS).map(([k,v])=>'<option value="'+k+'">'+T.ru[v.key]+(v.sign<0?' (вычитается)':' (прибавляется)')+'</option>').join('')+'</select>')+
-  '<div class="grid2">'+fld('aa','Сумма, ₪','<input id="aa" name="amount" type="number" step="0.01" min="0" required>')+fld('ad','Дата','<input id="ad" name="date" type="date" required value="'+def+'">')+'</div>'+
-  fld('an','Комментарий','<input id="an" name="note" placeholder="Например: премия за ноябрь">')+'<p class="err" id="aerr"></p>'+btnRow('Добавить')));
+  openModal(formWrap('adj','data-worker="'+wid+'"',A('<h2>Доплата или вычет</h2><p class="muted">')+esc(w.name)+' · '+esc(w.code)+'</p>'+
+  fld('ak',A('Тип'),'<select id="ak" name="kind">'+Object.entries(ADJ_KINDS).map(([k,v])=>'<option value="'+k+'">'+T.ru[v.key]+(v.sign<0?A(' (вычитается)'):A(' (прибавляется)'))+'</option>').join('')+'</select>')+
+  '<div class="grid2">'+fld('aa',A('Сумма, ₪'),'<input id="aa" name="amount" type="number" step="0.01" min="0" required>')+fld('ad',A('Дата'),'<input id="ad" name="date" type="date" required value="'+def+'">')+'</div>'+
+  fld('an',A('Комментарий'),A('<input id="an" name="note" placeholder="Например: премия за ноябрь">'))+'<p class="err" id="aerr"></p>'+btnRow(A('Добавить'))));
 }
 function sitePickModal(loc){
   const w=S.workers[S.me]||{};const c=S.companies[w.companyId]||{};const sites=(c.sites||[]).map(s=>({s,d:loc&&isFinite(s.lat)?distM(loc,s):null}));
@@ -833,7 +849,7 @@ function sitePickModal(loc){
   '<button class="btn" data-act="pickSite" data-arg="">'+t('otherPlace')+'</button><button class="btn ghost" data-act="closeModal">'+t('cancel')+'</button>');
 }
 let pendingLoc=null,pendingConfirm=null;
-function confirmModal(text,okLabel,fn){openModal('<h2>'+esc(text)+'</h2><div class="row"><button class="btn stop" data-act="confirmOk">'+esc(okLabel)+'</button><button class="btn" data-act="closeModal">'+(S.view==='admin'?'Отмена':t('cancel'))+'</button></div>');pendingConfirm=fn;}
+function confirmModal(text,okLabel,fn){openModal('<h2>'+esc(text)+'</h2><div class="row"><button class="btn stop" data-act="confirmOk">'+esc(okLabel)+'</button><button class="btn" data-act="closeModal">'+(S.view==='admin'?A('Отмена'):t('cancel'))+'</button></div>');pendingConfirm=fn;}
 function forgotModal(){
   openModal(formWrap('forgot','','<h2>'+t('forgotTitle')+'</h2><p class="muted">'+t('forgotText')+'</p>'+
   fld('femail',t('email'),'<input id="femail" name="email" type="email" dir="ltr" autocapitalize="off" required value="'+esc(S.login.id.includes('@')?S.login.id:'')+'">')+
@@ -848,23 +864,23 @@ function buildCsv(){
   const q=v=>{const s=String(v==null?'':v);return /[",;\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};
   const dec=h=>(Math.round(h*100)/100).toFixed(2);
   const out=[];
-  out.push(['Отчёт',pa+' — '+pb,S.repCompany==='all'?'Все компании':companyName(S.repCompany)]);out.push([]);
-  out.push(['ID','Имя','Компания','Ставка ₪/ч','Часы всего'].concat(pcts.map(p=>'Часы '+p+'%')).concat(['Сверхурочно','За часы ₪','Рабочих дней','Проезд ₪','Доплаты ₪','Вычеты ₪','К выплате ₪']));
+  out.push([A('Отчёт'),pa+' — '+pb,S.repCompany==='all'?A('Все компании'):companyName(S.repCompany)]);out.push([]);
+  out.push(['ID',A('Имя'),A('Компания'),A('Ставка ₪/ч'),A('Часы всего')].concat(pcts.map(p=>A('Часы ')+p+'%')).concat([A('Сверхурочно'),A('За часы ₪'),A('Рабочих дней'),A('Проезд ₪'),A('Доплаты ₪'),A('Вычеты ₪'),A('К выплате ₪')]));
   rows.forEach(({w,m})=>out.push([w.code,w.name,companyName(w.companyId),w.rate||'',dec(m.totalH)].concat(pcts.map(p=>dec(m.buckets[p]||0))).concat([dec(m.otH),Math.round(m.pay),m.travelDays,Math.round(m.travel),Math.round(m.plus),Math.round(m.minus),Math.round(m.total)])));
-  out.push([]);out.push(['Смены по дням']);
-  out.push(['ID','Имя','Дата','День','Праздник','Объект','Начало','Конец','Перерыв, мин','Часы за день','Сумма за день ₪','Место начала','Место конца']);
+  out.push([]);out.push([A('Смены по дням')]);
+  out.push(['ID',A('Имя'),A('Дата'),A('День'),A('Праздник'),A('Объект'),A('Начало'),A('Конец'),A('Перерыв, мин'),A('Часы за день'),A('Сумма за день ₪'),A('Место начала'),A('Место конца')]);
   rows.forEach(({w,m})=>m.days.slice().reverse().forEach(d=>d.shifts.forEach((s,i)=>{const site=siteOf(s);const x=shiftWork(s);
-    const g=k=>{const l=s[k+'Loc'];if(!l)return '';if(site&&isFinite(site.lat)){const dd=distM(l,site);return dd<=(Number(site.radius)||200)+Math.min(l.acc||0,300)?'на объекте':'далеко '+fmtDist(dd);}return l.lat+','+l.lng;};
-    out.push([w.code,w.name,d.key,WD[parseDay(d.key).getDay()],d.hol?(d.hol.name||'праздник'):'',site?site.name:'',clock(s.start),s.end?clock(s.end):'идёт',Math.round(x.br/60000),i===0?dec(d.H):'',i===0?Math.round(d.pay):'',g('start'),g('end')]);})));
+    const g=k=>{const l=s[k+'Loc'];if(!l)return '';if(site&&isFinite(site.lat)){const dd=distM(l,site);return dd<=(Number(site.radius)||200)+Math.min(l.acc||0,300)?A('на объекте'):A('далеко ')+fmtDist(dd);}return l.lat+','+l.lng;};
+    out.push([w.code,w.name,d.key,WDL()[parseDay(d.key).getDay()],d.hol?(d.hol.name||A('праздник')):'',site?site.name:'',clock(s.start),s.end?clock(s.end):A('идёт'),Math.round(x.br/60000),i===0?dec(d.H):'',i===0?Math.round(d.pay):'',g('start'),g('end')]);})));
   const adjRows=rows.flatMap(({w,m})=>m.adj.map(a=>[w.code,w.name,a.date,T.ru[(ADJ_KINDS[a.kind]||{}).key||'kBonus'],a.amount,a.note||'']));
-  if(adjRows.length){out.push([]);out.push(['Доплаты и вычеты']);out.push(['ID','Имя','Дата','Тип','Сумма ₪','Комментарий']);adjRows.forEach(r=>out.push(r));}
+  if(adjRows.length){out.push([]);out.push([A('Доплаты и вычеты')]);out.push(['ID',A('Имя'),A('Дата'),A('Тип'),A('Сумма ₪'),A('Комментарий')]);adjRows.forEach(r=>out.push(r));}
   return '﻿'+out.map(r=>r.map(q).join(',')).join('\r\n');
 }
 async function shareFile(name,text,mime){
   const P=window.Capacitor&&window.Capacitor.Plugins;const bin=typeof text!=='string';mime=mime||'text/csv';
   if(isNative()){
     if(P&&P.Filesystem&&P.Share){
-      try{const r=await P.Filesystem.writeFile(bin?{path:name,data:b64(text),directory:'CACHE'}:{path:name,data:text,directory:'CACHE',encoding:'utf8'});await P.Share.share({title:name,url:r.uri,dialogTitle:'Отчёт для Excel'});return true;}
+      try{const r=await P.Filesystem.writeFile(bin?{path:name,data:b64(text),directory:'CACHE'}:{path:name,data:text,directory:'CACHE',encoding:'utf8'});await P.Share.share({title:name,url:r.uri,dialogTitle:A('Отчёт для Excel')});return true;}
       catch(e){if(/cancel/i.test(String(e&&(e.message||e.code)||'')))return true;console.error(e);}
     }
     return false;
@@ -879,7 +895,7 @@ async function shareFile(name,text,mime){
 async function doExport(){
   const csv=buildCsv();const [pa,pb]=periodRange();const name='tabel-'+pa+'_'+pb+(S.repCompany!=='all'?'-'+companyName(S.repCompany).replace(/[^\wа-яА-ЯёЁ-]+/g,'_'):'')+'.csv';
   const ok=await shareFile(name,csv);
-  if(!ok)openModal('<h2>Данные для Excel</h2><p class="muted small">Скачивание здесь не сработало. Нажмите «Копировать» и вставьте в Excel или Google Таблицы.</p><textarea id="csvbox" rows="8" readonly>'+esc(csv.replace('\ufeff','').replace(/,/g,'\t'))+'</textarea><div class="row"><button class="btn primary" data-act="copyCsv">Копировать</button><button class="btn" data-act="closeModal">Закрыть</button></div>');
+  if(!ok)openModal(A('<h2>Данные для Excel</h2><p class="muted small">Скачивание здесь не сработало. Нажмите «Копировать» и вставьте в Excel или Google Таблицы.</p><textarea id="csvbox" rows="8" readonly>')+esc(csv.replace('\ufeff','').replace(/,/g,'\t'))+A('</textarea><div class="row"><button class="btn primary" data-act="copyCsv">Копировать</button><button class="btn" data-act="closeModal">Закрыть</button></div>'));
 }
 
 /* ---------- Excel-отчёты (ExcelJS + report.js) ---------- */
@@ -907,16 +923,16 @@ function xlCompanyWorkers(cid,from,to){return sortedWorkers().filter(([,w])=>!is
 const fileSafe=s=>String(s).replace(/[^\wа-яА-ЯёЁא-ת-]+/g,'_');
 function periodTag(){const [a,b]=periodRange();return S.period.mode==='month'?S.period.month:a+'_'+b;}
 function xlModal(){
-  const cs=scopedCompanies();if(!cs.length){toast('Нет компаний');return;}
+  const cs=scopedCompanies();if(!cs.length){toast(A('Нет компаний'));return;}
   const list=S.repCompany!=='all'?cs.filter(([id])=>id===S.repCompany):cs;
-  openModal('<h2>Скачать Excel · '+esc(periodLabel())+'</h2><p class="muted small">Период — тот, что выбран вверху отчёта. <b>Отчёт</b> — сводка + лист на каждого работника (у недельных компаний ещё лист «По неделям»). <b>Недели</b> — сетка вход / выход / часы.</p>'+
-  (cs.length>1&&S.repCompany==='all'?'<button class="btn big primary" data-act="xl" data-arg="companies:">📊 Сводка по всем компаниям</button>':'')+
-  '<div>'+list.map(([id,c])=>'<div class="list-item"><div class="grow"><b>'+esc(c.name)+'</b><div class="muted small">'+(c.payPeriod==='week'?'зарплата каждую неделю':'зарплата раз в месяц')+'</div></div><button class="btn sm primary" data-act="xl" data-arg="month:'+id+'">Отчёт</button><button class="btn sm" data-act="xl" data-arg="week:'+id+'">Недели</button></div>').join('')+'</div>'+
-  '<div class="row"><button class="btn sm ghost" data-act="export">Все смены подробно (CSV)</button><div style="flex:1"></div><button class="btn" data-act="closeModal">Закрыть</button></div>');
+  openModal(A('<h2>Скачать Excel · ')+esc(periodLabel())+A('</h2><p class="muted small">Период — тот, что выбран вверху отчёта. <b>Отчёт</b> — сводка + лист на каждого работника (у недельных компаний ещё лист «По неделям»). <b>Недели</b> — сетка вход / выход / часы.</p>')+
+  (cs.length>1&&S.repCompany==='all'?A('<button class="btn big primary" data-act="xl" data-arg="companies:">📊 Сводка по всем компаниям</button>'):'')+
+  '<div>'+list.map(([id,c])=>'<div class="list-item"><div class="grow"><b>'+esc(c.name)+'</b><div class="muted small">'+(c.payPeriod==='week'?A('зарплата каждую неделю'):A('зарплата раз в месяц'))+'</div></div><button class="btn sm primary" data-act="xl" data-arg="month:'+id+A('">Отчёт</button><button class="btn sm" data-act="xl" data-arg="week:')+id+A('">Недели</button></div>')).join('')+'</div>'+
+  A('<div class="row"><button class="btn sm ghost" data-act="export">Все смены подробно (CSV)</button><div style="flex:1"></div><button class="btn" data-act="closeModal">Закрыть</button></div>'));
 }
 let xlBusy=false;
 async function doXlsx(kind,cid){
-  if(xlBusy)return;xlBusy=true;toast("Готовим файл…");
+  if(xlBusy)return;xlBusy=true;toast(A("Готовим файл…"));
   try{
     const [EX,R]=await xlLib();const [from,to]=periodRange();let wb,name;
     if(kind==='companies'){
@@ -925,7 +941,7 @@ async function doXlsx(kind,cid){
       wb=R.companies(EX,{lang:'ru',from,to,rows});name='Сводка_по_компаниям_'+periodTag()+'.xlsx';
     }else{
       const c=S.companies[cid];if(!c)throw new Error('no company');const lang=c.lang==='he'?'he':'ru';const ws=xlCompanyWorkers(cid,from,to);
-      if(!ws.length){toast('За этот период у '+c.name+' нет смен');return;}
+      if(!ws.length){toast(A('За этот период у ')+c.name+A(' нет смен'));return;}
       if(kind==='week'){
         const weeks=[];let k=weekStartOf(from);while(k<=to){const dates=[0,1,2,3,4,5,6].map(i=>addDays(k,i));weeks.push({dates,workers:xlCompanyWorkers(cid,dates[0]<from?from:dates[0],dates[6]>to?to:dates[6])});k=addDays(k,7);}
         wb=R.weekly(EX,{lang,company:c.name,weeks:weeks.filter(w=>w.workers.length)});name=fileSafe(c.name)+'_недели_'+periodTag()+'.xlsx';
@@ -934,8 +950,8 @@ async function doXlsx(kind,cid){
       }
     }
     const buf=await wb.xlsx.writeBuffer();
-    const ok=await shareFile(name,buf,XLSX_MIME);if(!ok)toast('Не удалось сохранить файл. Попробуйте на компьютере.');
-  }catch(e){console.error(e);toast('Не получилось сделать Excel: '+(e.message||e));}
+    const ok=await shareFile(name,buf,XLSX_MIME);if(!ok)toast(A('Не удалось сохранить файл. Попробуйте на компьютере.'));
+  }catch(e){console.error(e);toast(A('Не получилось сделать Excel: ')+(e.message||e));}
   finally{xlBusy=false;}
 }
 
@@ -945,14 +961,14 @@ async function doClockIn(loc,siteId){
   const ok=await safe(()=>put('shifts',newId('shifts'),{workerId:S.me,companyId:w.companyId||'',start:now,end:null,month:monthKey(new Date(now)),createdAt:now,breaks:[],startLoc:loc||null,siteId:siteId||null}));
   if(ok)toast(loc?t('tStarted'):t('tNoGeo'));
 }
-function approveLockedCheck(cid,ms){if(isLocked(cid,monthKey(new Date(ms)))){toast('Этот месяц закрыт. Сначала откройте его в отчёте.');return true;}return false;}
+function approveLockedCheck(cid,ms){if(isLocked(cid,monthKey(new Date(ms)))){toast(A('Этот месяц закрыт. Сначала откройте его в отчёте.'));return true;}return false;}
 const ACT={
   lang(l){LANG=l;store.set('tabel.lang',l);render();},
   goAdmin(){S.view='admin';S.tab='home';S.repWorker=null;syncSubs();render();window.scrollTo(0,0);},
   backAdmin(){S.view='admin';S.asAdminPreview=false;S.me=S.uid;S.repCompany='all';syncSubs();render();},
   logout(){S.asAdminPreview=false;S.login={id:'',pin:''};B.signOut();},
   forgot(){forgotModal();},
-  sendReset(id){const w=S.workers[id];if(!w||!w.authEmail)return;safe(()=>B.reset(w.authEmail),'Письмо отправлено на '+w.authEmail);},
+  sendReset(id){const w=S.workers[id];if(!w||!w.authEmail)return;safe(()=>B.reset(w.authEmail),A('Письмо отправлено на ')+w.authEmail);},
   tab(a){S.tab=a;S.repWorker=null;render();window.scrollTo(0,0);},
   month(a){S.month=shiftMonth(S.month,Number(a));syncSubs();render();},
   pmode(m){const p=S.period;const r=periodRange();const anchor=today>=r[0]&&today<=r[1]?today:r[0];p.mode=m;if(m==='month')p.month=anchor.slice(0,7);if(m==='week')p.week=weekStartOf(anchor);if(m==='custom'){p.from=r[0];p.to=r[1];}syncSubs();render();},
@@ -979,43 +995,43 @@ const ACT={
   },
   breakStart(id){const s=S.shifts[id];if(!s)return;const br=(Array.isArray(s.breaks)?s.breaks:[]).map(b=>Object.assign({},b));br.push({s:Date.now(),e:null});safe(()=>patch('shifts',id,{breaks:br}),t('tBreak'));},
   breakEnd(id){const s=S.shifts[id];if(!s)return;const now=Date.now();const br=(Array.isArray(s.breaks)?s.breaks:[]).map(b=>Object.assign({},b,b.e?{}:{e:now}));safe(()=>patch('shifts',id,{breaks:br}),t('tResume'));},
-  adminClose(id){const s=S.shifts[id];const w=S.workers[s.workerId]||{};confirmModal('Закрыть смену '+(w.name||'')+' текущим временем?','Закрыть',()=>safe(async()=>{const now=Date.now();const br=(Array.isArray(s.breaks)?s.breaks:[]).map(b=>Object.assign({},b,b.e?{}:{e:now}));await patch('shifts',id,{end:now,breaks:br,editedAt:now});await logAudit('close',s,id,snap(s),snap(Object.assign({},s,{end:now,breaks:br})));},'Смена закрыта'));},
+  adminClose(id){const s=S.shifts[id];const w=S.workers[s.workerId]||{};confirmModal(A('Закрыть смену ')+(w.name||'')+A(' текущим временем?'),A('Закрыть'),()=>safe(async()=>{const now=Date.now();const br=(Array.isArray(s.breaks)?s.breaks:[]).map(b=>Object.assign({},b,b.e?{}:{e:now}));await patch('shifts',id,{end:now,breaks:br,editedAt:now});await logAudit('close',s,id,snap(s),snap(Object.assign({},s,{end:now,breaks:br})));},A('Смена закрыта')));},
   reqEdit(id){requestModal(id);},
   reqAdd(){requestModal(null);},
   approve(id){const r=S.requests[id];if(!r)return;if(approveLockedCheck(r.companyId,r.start))return;safe(async()=>{
       const now=Date.now();
       if(r.type==='edit'&&r.shiftId&&S.shifts[r.shiftId]){const s=S.shifts[r.shiftId];await patch('shifts',r.shiftId,{start:r.start,end:r.end,month:monthKey(new Date(r.start)),editedAt:now});await logAudit('approve',s,r.shiftId,snap(s),snap(Object.assign({},s,{start:r.start,end:r.end})));}
       else{const nid=newId('shifts');const ns={workerId:r.workerId,companyId:r.companyId||(S.workers[r.workerId]||{}).companyId||'',start:r.start,end:r.end,month:monthKey(new Date(r.start)),createdAt:now,editedAt:now,breaks:[],source:'request'};await put('shifts',nid,ns);await logAudit('approve',ns,nid,null,snap(ns));}
-      await patch('requests',id,{status:'approved',decidedAt:now,decidedBy:S.uid});},'Одобрено, время обновлено');},
-  reject(id){safe(()=>patch('requests',id,{status:'rejected',decidedAt:Date.now(),decidedBy:S.uid}),'Запрос отклонён');},
+      await patch('requests',id,{status:'approved',decidedAt:now,decidedBy:S.uid});},A('Одобрено, время обновлено'));},
+  reject(id){safe(()=>patch('requests',id,{status:'rejected',decidedAt:Date.now(),decidedBy:S.uid}),A('Запрос отклонён'));},
   repWorker(id){S.repWorker=id;render();window.scrollTo(0,0);},
   repBack(){S.repWorker=null;render();},
   shiftAdd(wid){shiftModal(null,wid);},
   shiftEdit(id){shiftModal(id);},
-  shiftDelete(id){const s=S.shifts[id];confirmModal('Удалить эту смену?','Удалить',()=>safe(async()=>{await remove('shifts',id);await logAudit('delete',s,id,snap(s),null);},'Смена удалена'));},
+  shiftDelete(id){const s=S.shifts[id];confirmModal(A('Удалить эту смену?'),A('Удалить'),()=>safe(async()=>{await remove('shifts',id);await logAudit('delete',s,id,snap(s),null);},A('Смена удалена')));},
   adjAdd(wid){adjModal(wid);},
-  adjDel(id){confirmModal('Удалить эту доплату/вычет?','Удалить',()=>safe(()=>remove('adj',id),'Удалено'));},
+  adjDel(id){confirmModal(A('Удалить эту доплату/вычет?'),A('Удалить'),()=>safe(()=>remove('adj',id),A('Удалено')));},
   workerForm(id){workerModal(id||null);},
   companyForm(id){companyModal(id||null);},
-  companyDelete(id){const n=Object.values(S.workers).filter(w=>w.companyId===id).length;if(n){toast('Сначала переведите или удалите работников этой компании ('+n+')');return;}confirmModal('Удалить компанию «'+companyName(id)+'»?','Удалить',()=>safe(()=>remove('companies',id),'Компания удалена'));},
+  companyDelete(id){const n=Object.values(S.workers).filter(w=>w.companyId===id).length;if(n){toast(A('Сначала переведите или удалите работников этой компании (')+n+')');return;}confirmModal(A('Удалить компанию «')+companyName(id)+'»?',A('Удалить'),()=>safe(()=>remove('companies',id),A('Компания удалена')));},
   sitesForm(id){sitesModal(id);},
-  siteNew(){readSiteInputs();siteDraft.sites.push({id:uid(),name:'Объект '+(siteDraft.sites.length+1),radius:200});sitesModal();},
+  siteNew(){readSiteInputs();siteDraft.sites.push({id:uid(),name:A('Объект ')+(siteDraft.sites.length+1),radius:200});sitesModal();},
   siteDel(i){readSiteInputs();siteDraft.sites.splice(Number(i),1);sitesModal();},
-  async siteHere(i){readSiteInputs();toast('Определяем место…');const loc=await getLoc();if(!loc){toast('Не удалось определить место. Разрешите геолокацию для браузера.');return;}Object.assign(siteDraft.sites[Number(i)],{lat:loc.lat,lng:loc.lng});sitesModal();toast('Место объекта задано (точность ~'+loc.acc+' м)');},
+  async siteHere(i){readSiteInputs();toast(A('Определяем место…'));const loc=await getLoc();if(!loc){toast(A('Не удалось определить место. Разрешите геолокацию для браузера.'));return;}Object.assign(siteDraft.sites[Number(i)],{lat:loc.lat,lng:loc.lng});sitesModal();toast(A('Место объекта задано (точность ~')+loc.acc+A(' м)'));},
   holAdd(){holModal();},
   holAll(){S.showAllHol=!S.showAllHol;render();},
-  holDel(k){const days=Object.assign({},S.holidays);delete days[k];safe(()=>B.put('settings','holidays',{days}),'Удалено');},
-  holClear(){confirmModal('Удалить все праздники из списка?','Удалить все',()=>safe(()=>B.put('settings','holidays',{days:{}}),'Список праздников очищен'));},
+  holDel(k){const days=Object.assign({},S.holidays);delete days[k];safe(()=>B.put('settings','holidays',{days}),A('Удалено'));},
+  holClear(){confirmModal(A('Удалить все праздники из списка?'),A('Удалить все'),()=>safe(()=>B.put('settings','holidays',{days:{}}),A('Список праздников очищен')));},
   async lockMonth(how){
     const m=S.period.month;const ids=S.repCompany==='all'?scopedCompanies().map(([id])=>id):[S.repCompany];
-    const go=()=>safe(async()=>{for(const id of ids){const c=S.companies[id];const l=new Set(Array.isArray(c.locked)?c.locked:[]);how==='lock'?l.add(m):l.delete(m);await patch('companies',id,{locked:[...l].sort()});}},how==='lock'?'Месяц закрыт':'Месяц открыт для правок');
-    if(how==='lock')confirmModal('Закрыть '+monthLabel(m)+(ids.length>1?' для всех компаний':' для «'+companyName(ids[0])+'»')+'? Смены, запросы и доплаты за этот месяц больше нельзя будет менять.','Закрыть месяц',go);else go();
+    const go=()=>safe(async()=>{for(const id of ids){const c=S.companies[id];const l=new Set(Array.isArray(c.locked)?c.locked:[]);how==='lock'?l.add(m):l.delete(m);await patch('companies',id,{locked:[...l].sort()});}},how==='lock'?A('Месяц закрыт'):A('Месяц открыт для правок'));
+    if(how==='lock')confirmModal(A('Закрыть ')+monthLabel(m)+(ids.length>1?A(' для всех компаний'):A(' для «')+companyName(ids[0])+'»')+A('? Смены, запросы и доплаты за этот месяц больше нельзя будет менять.'),A('Закрыть месяц'),go);else go();
   },
   regForm(){regModal();},
   actAsAdmin(id){S.me=id;S.asAdminPreview=true;S.view='admin';S.tab='now';S.repWorker=null;S.repCompany='all';render();window.scrollTo(0,0);},
   myTable(){S.view='worker';S.me=S.uid;S.month=monthKey(new Date());syncSubs();render();window.scrollTo(0,0);},
   regAccept(id){workerModal(id);},
-  regReject(id){const w=S.workers[id]||{};confirmModal('Отклонить регистрацию '+(w.name||'')+'?','Отклонить',()=>safe(()=>patch('workers',id,{status:'rejected',active:false}),'Регистрация отклонена'));},
+  regReject(id){const w=S.workers[id]||{};confirmModal(A('Отклонить регистрацию ')+(w.name||'')+'?',A('Отклонить'),()=>safe(()=>patch('workers',id,{status:'rejected',active:false}),A('Регистрация отклонена')));},
   openTable(id){S.tab='report';S.repWorker=id;render();window.scrollTo(0,0);},
   actAs(id){S.me=id;S.asAdminPreview=true;S.view='worker';S.month=monthKey(new Date());syncSubs();render();window.scrollTo(0,0);},
   export(){closeModal();doExport();},
@@ -1024,8 +1040,8 @@ const ACT={
   repClose(){S.repOpen=false;render();},
   repSet(id){S.repCompany=id;S.repOpen=false;render();},
   xl(arg){const [kind,cid]=String(arg).split(':');closeModal();doXlsx(kind,cid||null);},
-  presetAdd(){const miss=presetMissing();if(!miss.length)return;safe(async()=>{for(const [name,pay,rules,lang] of miss){await put('companies',newId('companies'),{name,createdAt:Date.now(),payPeriod:pay,lang:lang||'ru',rules:Object.assign({},DEFAULT_RULES,rules||{}),sites:[],locked:[]});}},'Добавлено компаний: '+miss.length);},
-  copyCsv(){const x=document.getElementById('csvbox');if(!x)return;const done=()=>toast('Скопировано, вставьте в Excel');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(x.value).then(done,()=>{x.focus();x.select();document.execCommand('copy');done();});else{x.focus();x.select();document.execCommand('copy');done();}},
+  presetAdd(){const miss=presetMissing();if(!miss.length)return;safe(async()=>{for(const [name,pay,rules,lang] of miss){await put('companies',newId('companies'),{name,createdAt:Date.now(),payPeriod:pay,lang:lang||'ru',rules:Object.assign({},DEFAULT_RULES,rules||{}),sites:[],locked:[]});}},A('Добавлено компаний: ')+miss.length);},
+  copyCsv(){const x=document.getElementById('csvbox');if(!x)return;const done=()=>toast(A('Скопировано, вставьте в Excel'));if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(x.value).then(done,()=>{x.focus();x.select();document.execCommand('copy');done();});else{x.focus();x.select();document.execCommand('copy');done();}},
   closeModal(){closeModal();},
   confirmOk(){const f=pendingConfirm;pendingConfirm=null;closeModal();if(f)f();}
 };
@@ -1048,54 +1064,54 @@ const FORM={
     const id=f.dataset.id||newId('companies');const num=k=>Number(fd.get(k));const r0=rulesOf(S.companies[id]);
     const rules={norm:num('norm'),ot1Hours:num('ot1Hours'),ot1:num('ot1'),ot2:num('ot2'),breakMin:num('breakMin')||0,holiday:r0.holiday,eve:r0.eve,maxShiftH:num('maxShiftH')||12,day:[0,1,2,3,4,5,6].map(i=>num('d'+i)||100)};
     const data=Object.assign({},f.dataset.id?S.companies[id]:{createdAt:Date.now()},{name:String(fd.get('name')).trim(),rules,payPeriod:fd.get('payPeriod')==='week'?'week':'month',lang:fd.get('lang')==='he'?'he':'ru'});
-    closeModal();safe(()=>put('companies',id,data),'Сохранено');
+    closeModal();safe(()=>put('companies',id,data),A('Сохранено'));
   },
   sites(){
     readSiteInputs();const d=siteDraft;
-    if(d.sites.some(s=>!s.name)){toast('У каждого объекта должно быть название');return;}
+    if(d.sites.some(s=>!s.name)){toast(A('У каждого объекта должно быть название'));return;}
     const sites=d.sites.map(s=>{const o={id:s.id,name:s.name,radius:Number(s.radius)||200};if(isFinite(s.lat)&&isFinite(s.lng)){o.lat=s.lat;o.lng=s.lng;}return o;});
-    closeModal();siteDraft=null;safe(()=>patch('companies',d.cid,{sites}),'Объекты сохранены');
+    closeModal();siteDraft=null;safe(()=>patch('companies',d.cid,{sites}),A('Объекты сохранены'));
   },
-  hol(fd){const d=String(fd.get('date')||'');if(!d)return;const co=fd.getAll('co').map(String);if(!co.length){toast('Выберите хотя бы одну компанию');return;}
+  hol(fd){const d=String(fd.get('date')||'');if(!d)return;const co=fd.getAll('co').map(String);if(!co.length){toast(A('Выберите хотя бы одну компанию'));return;}
     const all=sortedCompanies().every(([id])=>co.includes(id));const pct=Math.max(100,Number(fd.get('pct'))||150);
-    const v={name:String(fd.get('name')||'').trim()||'Праздник',pct};if(!all)v.companies=co;
-    const days=Object.assign({},S.holidays,{[d]:v});closeModal();safe(()=>B.put('settings','holidays',{days}),'Добавлено');},
+    const v={name:String(fd.get('name')||'').trim()||A('Праздник'),pct};if(!all)v.companies=co;
+    const days=Object.assign({},S.holidays,{[d]:v});closeModal();safe(()=>B.put('settings','holidays',{days}),A('Добавлено'));},
   adj(fd,f){
     const err=x=>{document.getElementById('aerr').textContent=x;};
     const wid=f.dataset.worker;const w=S.workers[wid]||{};const kind=String(fd.get('kind'));const amt=Number(fd.get('amount'));const date=String(fd.get('date')||'');
-    if(!(amt>0))return err('Укажите сумму больше нуля');if(!date)return err('Укажите дату');
-    if(isLocked(w.companyId,date.slice(0,7)))return err('Этот месяц закрыт');
+    if(!(amt>0))return err(A('Укажите сумму больше нуля'));if(!date)return err(A('Укажите дату'));
+    if(isLocked(w.companyId,date.slice(0,7)))return err(A('Этот месяц закрыт'));
     const sign=(ADJ_KINDS[kind]||{sign:1}).sign;
-    closeModal();safe(()=>put('adj',newId('adj'),{workerId:wid,companyId:w.companyId||'',kind,amount:Math.round(amt*100)/100*sign,date,month:date.slice(0,7),note:String(fd.get('note')||'').trim().slice(0,200),createdAt:Date.now(),by:S.uid}),'Добавлено');
+    closeModal();safe(()=>put('adj',newId('adj'),{workerId:wid,companyId:w.companyId||'',kind,amount:Math.round(amt*100)/100*sign,date,month:date.slice(0,7),note:String(fd.get('note')||'').trim().slice(0,200),createdAt:Date.now(),by:S.uid}),A('Добавлено'));
   },
   prange(fd){const a=String(fd.get('from')||''),b=String(fd.get('to')||'');if(!a||!b)return;S.period.from=a<b?a:b;S.period.to=a<b?b:a;syncSubs();render();},
   async worker(fd,f){
     const err=x=>{document.getElementById('werr').textContent=x;};
     const id=f.dataset.id||null;
     const phone=String(fd.get('phone')||'').trim(),email=normEmail(fd.get('email'));
-    if(phone&&digits(phone).length<7)return err('Проверьте номер телефона');
-    if(phone&&findDup('phone',phone,id))return err('Этот телефон уже есть у другого работника');
+    if(phone&&digits(phone).length<7)return err(A('Проверьте номер телефона'));
+    if(phone&&findDup('phone',phone,id))return err(A('Этот телефон уже есть у другого работника'));
     const a=adm();
     const base=Object.assign({},id?S.workers[id]:{createdAt:Date.now(),role:'worker',manages:[]});
     const data=Object.assign(base,{name:String(fd.get('name')).trim(),phone,companyId:fd.get('companyId'),rate:Number(fd.get('rate'))||0,travel:Number(fd.get('travel'))||0,active:fd.get('active')==='on',status:'active'});
-    if(a.roles&&fd.get('role')){const role=String(fd.get('role'));const manages=fd.getAll('manages').map(String);if(role==='manager'&&!manages.length)return err('Отметьте компании, которыми управляет старший');data.role=role;data.manages=role==='manager'?manages:[];}
+    if(a.roles&&fd.get('role')){const role=String(fd.get('role'));const manages=fd.getAll('manages').map(String);if(role==='manager'&&!manages.length)return err(A('Отметьте компании, которыми управляет старший'));data.role=role;data.manages=role==='manager'?manages:[];}
     const btn=f.querySelector('button[type=submit]');btn.disabled=true;
     try{
       if(!id){
         const pass=String(fd.get('pass')||'');
-        if(pass.length<6)throw {msg:'Пароль: минимум 6 символов'};
-        if(!phone&&!email)throw {msg:'Укажите телефон или email'};
-        if(phone){const ex=await B.get('logins','p_'+normPhone(phone));if(ex)throw {msg:'Этот телефон уже зарегистрирован'};}
+        if(pass.length<6)throw {msg:A('Пароль: минимум 6 символов')};
+        if(!phone&&!email)throw {msg:A('Укажите телефон или email')};
+        if(phone){const ex=await B.get('logins','p_'+normPhone(phone));if(ex)throw {msg:A('Этот телефон уже зарегистрирован')};}
         const authEmail=email||phoneEmail(phone);let nid;
-        try{nid=await B.createOther(authEmail,pass);}catch(e){throw {msg:String(e.code||'').includes('email-already')?'Этот email уже зарегистрирован':'Не удалось создать вход: '+(e.code||e.message)};}
+        try{nid=await B.createOther(authEmail,pass);}catch(e){throw {msg:String(e.code||'').includes('email-already')?A('Этот email уже зарегистрирован'):A('Не удалось создать вход: ')+(e.code||e.message)};}
         data.code=await B.nextCode();data.email=email;data.authEmail=authEmail;
         await put('workers',nid,data);await B.put('logins','c_'+data.code,{email:authEmail,uid:nid});
         if(phone)await B.put('logins','p_'+normPhone(phone),{email:authEmail,uid:nid});
-        closeModal();openModal('<h2>Работник добавлен</h2><p>ID для входа: <b class="tnum" style="font-size:22px">'+esc(data.code)+'</b></p><p class="muted">Сообщите ему ID (или телефон/email) и пароль.</p><button class="btn primary" data-act="closeModal">Понятно</button>');
+        closeModal();openModal(A('<h2>Работник добавлен</h2><p>ID для входа: <b class="tnum" style="font-size:22px">')+esc(data.code)+A('</b></p><p class="muted">Сообщите ему ID (или телефон/email) и пароль.</p><button class="btn primary" data-act="closeModal">Понятно</button>'));
       }else{
         const old=S.workers[id]||{};await put('workers',id,data);
         if(normPhone(old.phone)!==normPhone(phone)){if(old.phone)await B.remove('logins','p_'+normPhone(old.phone)).catch(()=>{});if(phone)await B.put('logins','p_'+normPhone(phone),{email:data.authEmail||old.authEmail,uid:id});}
-        closeModal();toast('Сохранено');
+        closeModal();toast(A('Сохранено'));
       }
     }catch(e){btn.disabled=false;err(e&&e.msg?e.msg:errText(e));}
   },
@@ -1123,19 +1139,19 @@ const FORM={
   },
   shift(fd,f){
     const a=fromInput(fd.get('start')),bRaw=fd.get('end'),b=bRaw?fromInput(bRaw):null;
-    const e=b===null?(isFinite(a)?'':'Укажите начало'):checkTimes(a,b);if(e){document.getElementById('serr').textContent=e;return;}
+    const e=b===null?(isFinite(a)?'':A('Укажите начало')):checkTimes(a,b);if(e){document.getElementById('serr').textContent=e;return;}
     const sid=f.dataset.id,wid=f.dataset.worker;const w=S.workers[wid]||{};
     const cid=sid?S.shifts[sid].companyId:(w.companyId||'');
-    if(isLocked(cid,monthKey(new Date(a)))){document.getElementById('serr').textContent='Этот месяц закрыт';return;}
+    if(isLocked(cid,monthKey(new Date(a)))){document.getElementById('serr').textContent=A('Этот месяц закрыт');return;}
     const brMin=Math.max(0,Number(fd.get('breakMin'))||0);const siteId=fd.has('siteId')?(fd.get('siteId')||null):undefined;
     const old=sid?S.shifts[sid]:null;const oldBr=old?Math.round(shiftWork(old,old.end||Date.now()).br/60000):0;
     let breaks=old&&Array.isArray(old.breaks)?old.breaks:[];
     if(!old||brMin!==oldBr)breaks=brMin>0?[{s:a,e:a+brMin*60000,manual:true}]:[];
     const now=Date.now();closeModal();
     if(sid){const upd={start:a,end:b,month:monthKey(new Date(a)),breaks,editedAt:now};if(siteId!==undefined)upd.siteId=siteId;
-      safe(async()=>{await patch('shifts',sid,upd);await logAudit('edit',old,sid,snap(old),snap(Object.assign({},old,upd)));},'Смена изменена');}
+      safe(async()=>{await patch('shifts',sid,upd);await logAudit('edit',old,sid,snap(old),snap(Object.assign({},old,upd)));},A('Смена изменена'));}
     else{const ns={workerId:wid,companyId:cid,start:a,end:b,month:monthKey(new Date(a)),breaks,createdAt:now,editedAt:now,source:'admin',siteId:siteId||null};const nid=newId('shifts');
-      safe(async()=>{await put('shifts',nid,ns);await logAudit('add',ns,nid,null,snap(ns));},'Смена добавлена');}
+      safe(async()=>{await put('shifts',nid,ns);await logAudit('add',ns,nid,null,snap(ns));},A('Смена добавлена'));}
   },
   request(fd,f){
     const a=fromInput(fd.get('start')),b=fromInput(fd.get('end'));const e=checkTimes(a,b);if(e){document.getElementById('rerr').textContent=e;return;}
@@ -1161,8 +1177,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$modal.hidden)clos
 /* ---------- render ---------- */
 function render(){
   const ae=document.activeElement;const fid=ae&&ae.id&&$app.contains(ae)?ae.id:null;let sel=null;try{sel=fid?ae.selectionStart:null;}catch(e){}
-  const workerSide=S.view!=='admin'||!S.uid;
-  document.documentElement.lang=workerSide?LANG:'ru';document.documentElement.dir=workerSide&&LANG==='he'?'rtl':'ltr';
+  document.documentElement.lang=LANG;document.documentElement.dir=LANG==='he'?'rtl':'ltr';
   $top.innerHTML=topBar();
   let h='';
   if(S.error)h+='<div class="banner">'+linkify(S.error)+'</div>';
@@ -1180,7 +1195,7 @@ function render(){
   try{syncReminder();}catch(e){}
   if(fid){const n=document.getElementById(fid);if(n){n.focus();try{if(sel!=null)n.setSelectionRange(sel,sel);}catch(e){}}}
 }
-function linkify(x){return esc(x).replace(/https:\/\/[^\s<]+/g,u=>'<a href="'+u+'" target="_blank" rel="noopener">ссылка</a>');}
+function linkify(x){return esc(x).replace(/https:\/\/[^\s<]+/g,u=>'<a href="'+u+A('" target="_blank" rel="noopener">ссылка</a>'));}
 setInterval(()=>{
   document.querySelectorAll('[data-since]').forEach(el=>{el.textContent=hm(Date.now()-Number(el.dataset.since));});
   document.querySelectorAll('[data-work]').forEach(el=>{const s=S.shifts[el.dataset.work];if(s)el.textContent=hm(shiftWork(s).ms);});
@@ -1250,7 +1265,7 @@ function mergeSrc(){
   S.workers=mg('users');S.shifts=mg('shifts');S.requests=mg('requests');S.adj=mg('adj');S.audit=mg('audit');
 }
 function listen(kind,name,q){
-  const u=B.listen(q,m=>{if(kind==='hol'){S.holidays=(m.holidays&&m.holidays.days)||{};render();return;}SRC[kind][name]=m;mergeSrc();render();},e=>{console.error(q,e);if(['hol','adj','audit'].includes(kind))return;S.error='Ошибка загрузки данных: '+(e.message||e.code);render();});
+  const u=B.listen(q,m=>{if(kind==='hol'){S.holidays=(m.holidays&&m.holidays.days)||{};render();return;}SRC[kind][name]=m;mergeSrc();render();},e=>{console.error(q,e);if(['hol','adj','audit'].includes(kind))return;S.error=A('Ошибка загрузки данных: ')+(e.message||e.code);render();});
   dataUnsubs.push(u);
 }
 let subKey='';
@@ -1289,7 +1304,7 @@ async function createProfile(p,owner){
     await B.put('users',S.uid,data);await B.put('logins','c_'+code,{email:authEmail,uid:S.uid});
     if(p.phone)await B.put('logins','p_'+normPhone(p.phone),{email:authEmail,uid:S.uid});
     return true;
-  }catch(e){console.error(e);S.error='Не удалось сохранить профиль: '+(e.code||e.message);return false;}
+  }catch(e){console.error(e);S.error=A('Не удалось сохранить профиль: ')+(e.code||e.message);return false;}
   finally{S.creating=false;S.pendingProfile=null;render();}
 }
 function onAuthUser(u){
@@ -1302,23 +1317,27 @@ function onAuthUser(u){
   meUnsub=B.listen({col:'users',id:u.uid},m=>{
     SRC.users.me=m;mergeSrc();S.profileLoaded=true;
     const prof=m[u.uid];
-    if(!prof&&!S.creating){if(S.pendingProfile)createProfile(S.pendingProfile,isOwnerEmail());else if(isOwnerEmail())createProfile({name:'Главный админ',email:S.email},true);}
+    if(!prof&&!S.creating){if(S.pendingProfile)createProfile(S.pendingProfile,isOwnerEmail());else if(isOwnerEmail())createProfile({name:A('Главный админ'),email:S.email},true);}
     if(first&&prof){first=false;S.view=(myRights()?'admin':'worker');}
     syncSubs();render();
-  },e=>{S.profileLoaded=true;S.error='Ошибка загрузки профиля: '+(e.message||e.code);render();});
+  },e=>{S.profileLoaded=true;S.error=A('Ошибка загрузки профиля: ')+(e.message||e.code);render();});
 }
 
 /* ---------- start ---------- */
+const BUILD='20261111141700';
+async function checkUpdate(){try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(j.v&&j.v!==BUILD&&!location.search.includes('v='+j.v))location.replace(location.pathname+'?v='+encodeURIComponent(j.v)+location.hash);}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate();});
 async function init(){
+  checkUpdate();
   render();
   const slowT=setTimeout(()=>{if(!S.ready){S.slow=true;render();}},10000);
   if(FIREBASE_CONFIG){
     try{const [app,auth,fs]=await Promise.all([import(FB_SDK+'firebase-app.js'),import(FB_SDK+'firebase-auth.js'),import(FB_SDK+'firebase-firestore.js')]);B=makeFirebase({app,auth,fs});}
-    catch(e){S.error='Не удалось загрузить сайт. Проверьте интернет и обновите страницу.';S.ready=true;render();return;}
+    catch(e){S.error=A('Не удалось загрузить сайт. Проверьте интернет и обновите страницу.');S.ready=true;render();return;}
   }else{B=makeDemo();S.demo=true;OWNER_EMAILS.push('admin@demo.ru');}
   let gotCo=false,gotAuth=false;
   const done=()=>{if(gotCo&&gotAuth&&!S.ready){S.ready=true;S.slow=false;clearTimeout(slowT);}render();};
-  B.listen({col:'companies'},m=>{S.companies=m;gotCo=true;done();},e=>{S.error='Ошибка загрузки: '+(e.message||e.code);gotCo=true;done();});
+  B.listen({col:'companies'},m=>{S.companies=m;gotCo=true;done();},e=>{S.error=A('Ошибка загрузки: ')+(e.message||e.code);gotCo=true;done();});
   B.onAuth(u=>{onAuthUser(u);gotAuth=true;done();});
 }
 init();
