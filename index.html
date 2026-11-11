@@ -922,7 +922,7 @@ const FORM={
       else{const key=loginKey(id);const d=key?await B.get('logins',key):null;if(d)email=d.email;}
       if(!email){S.loginErr=t('errNotFound');return;}
       await B.signIn(email,pin);S.login={id:'',pin:''};
-    }catch(e){const c=String(e&&e.code||'');S.loginErr=c.includes('too-many')?t('errTooMany'):c.includes('network')?t('errNetwork'):t('errWrong');}
+    }catch(e){console.error(e);const c=String(e&&e.code||'');S.loginErr=c.includes('too-many')?t('errTooMany'):c.includes('network')?t('errNetwork')+' ('+c+')':/invalid-credential|wrong-password|user-not-found|invalid-email|invalid-login/.test(c)?t('errWrong'):t('eFail')+(c?' ('+c+')':' ('+String(e&&e.message||e).slice(0,80)+')');}
     finally{S.busy=false;render();}
   },
   company(fd,f){
@@ -1067,7 +1067,9 @@ setInterval(()=>{
 /* ---------- backends ---------- */
 function makeFirebase(M){
   const A=M.auth,F=M.fs;
-  const app=M.app.initializeApp(FIREBASE_CONFIG);const auth=A.getAuth(app);const fdb=F.getFirestore(app);
+  const app=M.app.initializeApp(FIREBASE_CONFIG);
+  const mkAuth=a=>isNative()?A.initializeAuth(a,{persistence:[A.indexedDBLocalPersistence,A.browserLocalPersistence]}):A.getAuth(a);
+  const auth=mkAuth(app);const fdb=isNative()?F.initializeFirestore(app,{experimentalAutoDetectLongPolling:true}):F.getFirestore(app);
   let sec=null;
   return {
     demo:false,
@@ -1075,7 +1077,7 @@ function makeFirebase(M){
     signIn:(e,p)=>A.signInWithEmailAndPassword(auth,e,p),
     async signUp(e,p){const c=await A.createUserWithEmailAndPassword(auth,e,p);return c.user.uid;},
     signOut:()=>A.signOut(auth),
-    async createOther(e,p){if(!sec)sec=A.getAuth(M.app.initializeApp(FIREBASE_CONFIG,'secondary'));const c=await A.createUserWithEmailAndPassword(sec,e,p);const id=c.user.uid;await A.signOut(sec);return id;},
+    async createOther(e,p){if(!sec)sec=mkAuth(M.app.initializeApp(FIREBASE_CONFIG,'secondary'));const c=await A.createUserWithEmailAndPassword(sec,e,p);const id=c.user.uid;await A.signOut(sec);return id;},
     reset:e=>A.sendPasswordResetEmail(auth,e),
     async get(col,id){const x=await F.getDoc(F.doc(fdb,col,id));return x.exists()?x.data():null;},
     put:(col,id,d)=>F.setDoc(F.doc(fdb,col,id),d),
