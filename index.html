@@ -283,6 +283,8 @@ function rulesOf(c){
   r.day=r.day.map((v,i)=>isFinite(Number(v))&&Number(v)>0?Number(v):DEFAULT_RULES.day[i]);
   return r;
 }
+const holPct=(h,r)=>Number(h.pct)>0?Number(h.pct):(h.type==='eve'?r.eve:r.holiday);
+const holApplies=(h,cid)=>!Array.isArray(h.companies)||h.companies.includes(cid);
 const ADJ_KINDS={bonus:{sign:1,key:'kBonus'},travel:{sign:1,key:'kTravel'},advance:{sign:-1,key:'kAdvance'},deduction:{sign:-1,key:'kDeduction'}};
 
 /* ---------- state ---------- */
@@ -329,7 +331,7 @@ function calc(wid,from,to){
     let ms=0,hasBreaks=false;d.shifts.forEach(s=>{if(s.end&&s.end>s.start){const x=shiftWork(s);ms+=x.ms;if(x.br>0)hasBreaks=true;}});
     let H=ms/3600000;if(!hasBreaks&&r.breakMin>0&&H>6)H=Math.max(0,H-r.breakMin/60);
     const wd=parseDay(k).getDay();let dr=r.day[wd];const hol=S.holidays[k];
-    if(hol){dr=Math.max(dr,hol.type==='eve'?r.eve:r.holiday);d.hol=hol;}
+    if(hol&&holApplies(hol,w.companyId)){dr=Math.max(dr,holPct(hol,r));d.hol=hol;}
     const normal=Math.min(H,r.norm),o1=Math.min(Math.max(H-r.norm,0),r.ot1Hours),o2=Math.max(H-r.norm-r.ot1Hours,0);
     d.buckets={};d.pay=0;
     [[normal,dr],[o1,Math.max(dr,r.ot1)],[o2,Math.max(dr,r.ot2)]].forEach(([h,p])=>{if(h<1/60)return;d.buckets[p]=(d.buckets[p]||0)+h;out.buckets[p]=(out.buckets[p]||0)+h;d.pay+=h*rate*p/100;});
@@ -488,7 +490,7 @@ function workerView(){
   h+='<section class="card"><div class="row between"><h2>'+t('myShifts')+'</h2>'+(locked?'<span class="pill grey">🔒 '+t('monthLocked')+'</span>':'<button class="btn sm" data-act="reqAdd">'+t('forgotMark')+'</button>')+'</div>';
   if(!m.days.length)h+='<p class="empty">'+t('noShifts')+'</p>';
   m.days.forEach(d=>{
-    h+='<div class="day"><div class="row between"><h3>'+lDay(d.key)+(d.hol?' <span class="pill warn">'+(d.hol.type==='eve'?t('eve'):t('holiday'))+'</span>':'')+'</h3><span class="tnum"><b>'+hmH(d.H)+'</b>'+(m.rate?' · '+lMoney(d.pay):'')+'</span></div>';
+    h+='<div class="day"><div class="row between"><h3>'+lDay(d.key)+(d.hol?' <span class="pill warn">'+esc(d.hol.name||t('holiday'))+' · '+d.dayRate+'%</span>':'')+'</h3><span class="tnum"><b>'+hmH(d.H)+'</b>'+(m.rate?' · '+lMoney(d.pay):'')+'</span></div>';
     d.shifts.forEach(s=>{
       const req=Object.values(S.requests).some(q=>q.shiftId===s.id&&q.status==='pending');const x=shiftWork(s);const site=siteOf(s);
       h+='<div class="shift"><span class="t">'+clock(s.start)+' – '+(s.end?clock(s.end):t('running'))+(s.end?' <span class="muted">('+hm(x.ms)+')</span>':'')+(x.br>=60000?' <span class="muted small">· '+t('breakMin',{m:Math.round(x.br/60000)})+'</span>':'')+(site?' <span class="muted small">· '+esc(site.name)+'</span>':'')+'</span>'+
@@ -565,8 +567,7 @@ function adminReport(){
   const a=adm();const rows=reportRows();
   const pcts=[...new Set(rows.flatMap(r=>Object.keys(r.m.buckets).map(Number)))].sort((x,y)=>x-y);if(!pcts.includes(100))pcts.unshift(100);
   const anyTravel=rows.some(r=>r.m.travel),anyAdj=rows.some(r=>r.m.plus||r.m.minus);
-  let h=periodBar()+'<div class="row"><div class="field" style="flex:1;min-width:180px"><label for="repc">Компания</label><select id="repc" data-change="repCompany"><option value="all">'+(a.all?'Все компании':'Все мои компании')+'</option>'+
-  scopedCompanies().map(([id,c])=>'<option value="'+id+'"'+(S.repCompany===id?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></div>'+
+  let h=periodBar()+'<div class="row"><div class="field" style="flex:1;min-width:180px"><label>Компания</label><button class="btn" data-act="repPick" style="justify-content:space-between;width:100%">'+esc(S.repCompany==='all'?(a.all?'Все компании':'Все мои компании'):companyName(S.repCompany))+' <span aria-hidden="true">▾</span></button></div>'+
   '<button class="btn primary" data-act="xlModal" style="align-self:flex-end">Скачать Excel</button></div>';
   if(S.period.mode==='month'&&a.all&&scopedCompanies().length){
     const ids=S.repCompany==='all'?scopedCompanies().map(([id])=>id):[S.repCompany];const allLocked=ids.every(id=>isLocked(id,S.period.month));
@@ -657,10 +658,11 @@ function holidaysCard(){
   const all=Object.entries(S.holidays).sort((a,b)=>a[0]<b[0]?-1:1);
   const upcoming=all.filter(([k])=>k>=addDays(today,-7));
   const list=S.showAllHol?all:upcoming.slice(0,10);
-  return '<section class="card"><div class="row between"><h2>Праздники</h2><span class="pill grey">'+all.length+'</span></div>'+
-  '<p class="muted small">В праздник работа оплачивается по ставке праздника (обычно 150%), в канун — по ставке кануна (обычно 125%). Ставки задаются в каждой компании.</p>'+
-  '<div class="row"><button class="btn sm primary" data-act="holLoad">Загрузить праздники Израиля</button><button class="btn sm" data-act="holAdd">+ Добавить день</button></div>'+
-  (list.length?list.map(([k,v])=>'<div class="list-item"><div class="grow"><div>'+fmtDay(k)+' · '+esc(v.name||'')+'</div><div class="muted small">'+(v.type==='eve'?'канун праздника':'праздник')+'</div></div><button class="btn sm ghost danger" data-act="holDel" data-arg="'+k+'" aria-label="Удалить">✕</button></div>').join(''):'<p class="empty">Праздники не добавлены.</p>')+
+  const coNames=v=>Array.isArray(v.companies)?v.companies.map(companyName).join(', '):'все компании';
+  return '<section class="card"><div class="row between"><h2>Праздники и особые дни</h2><span class="pill grey">'+all.length+'</span></div>'+
+  '<p class="muted small">Отметьте день, за который платят больше: название и процент оплаты. Можно выбрать, к каким компаниям он относится.</p>'+
+  '<div class="row"><button class="btn sm primary" data-act="holAdd">+ Добавить день</button>'+(all.length?'<button class="btn sm ghost danger" data-act="holClear">Удалить все</button>':'')+'</div>'+
+  (list.length?list.map(([k,v])=>'<div class="list-item"><div class="grow"><div>'+fmtDay(k)+' · '+esc(v.name||'Праздник')+' · <b>'+(Number(v.pct)>0?v.pct+'%':(v.type==='eve'?'ставка кануна':'ставка праздника'))+'</b></div><div class="muted small">'+esc(coNames(v))+'</div></div><button class="btn sm ghost danger" data-act="holDel" data-arg="'+k+'" aria-label="Удалить">✕</button></div>').join(''):'<p class="empty">Пока нет отмеченных дней.</p>')+
   (all.length>list.length||S.showAllHol?'<button class="btn sm ghost" data-act="holAll">'+(S.showAllHol?'Только ближайшие':'Показать все ('+all.length+')')+'</button>':'')+'</section>';
 }
 function adminCompanies(){
@@ -678,7 +680,7 @@ function adminCompanies(){
     '<p class="small"><b>Старшие:</b> '+(mg||'<span class="muted">не назначены</span>')+'</p>'+
     '<p class="small"><b>Объекты:</b> '+(sites.length?sites.map(s=>esc(s.name)+(isFinite(s.lat)?' 📍':'')).join(', '):'<span class="muted">не добавлены</span>')+'</p>'+
     '<p class="small">Норма '+r.norm+' ч в день, дальше '+r.ot1Hours+' ч по '+r.ot1+'%, потом '+r.ot2+'%.</p>'+
-    '<p class="small">'+(special?'Доплата по дням: '+special+'.':'Все дни по 100%.')+' Праздник '+r.holiday+'%, канун '+r.eve+'%.'+(r.breakMin?' Перерыв '+r.breakMin+' мин вычитается из смен длиннее 6 ч, если работник не отмечал перерыв.':'')+'</p>'+
+    '<p class="small">'+(special?'Доплата по дням: '+special+'.':'Все дни по 100%.')+(r.breakMin?' Перерыв '+r.breakMin+' мин вычитается из смен длиннее 6 ч, если работник не отмечал перерыв.':'')+'</p>'+
     '<p class="muted small">'+n+' '+plural(n,'работник','работника','работников')+' · смена считается забытой после '+r.maxShiftH+' ч</p></section>';
   });
   if(a.all)h+=holidaysCard();
@@ -700,9 +702,8 @@ function companyModal(id){
   '<div class="grid2">'+fld('cnorm','Обычных часов в день','<input id="cnorm" name="norm" type="number" step="0.1" min="0" value="'+r.norm+'">')+fld('cbreak','Авто-перерыв, мин (смены > 6 ч)','<input id="cbreak" name="breakMin" type="number" min="0" value="'+r.breakMin+'">')+'</div>'+
   '<div class="grid2">'+fld('cot1h','Первые часы переработки','<input id="cot1h" name="ot1Hours" type="number" step="0.5" min="0" value="'+r.ot1Hours+'">')+fld('cot1','…оплата, %','<input id="cot1" name="ot1" type="number" min="100" value="'+r.ot1+'">')+'</div>'+
   '<div class="grid2">'+fld('cot2','Дальше переработка, %','<input id="cot2" name="ot2" type="number" min="100" value="'+r.ot2+'">')+fld('cmax','Смена «забыта» после, ч','<input id="cmax" name="maxShiftH" type="number" min="1" max="48" value="'+r.maxShiftH+'">')+'</div>'+
-  '<div class="grid2">'+fld('chol','Праздник, %','<input id="chol" name="holiday" type="number" min="100" value="'+r.holiday+'">')+fld('ceve','Канун праздника, %','<input id="ceve" name="eve" type="number" min="100" value="'+r.eve+'">')+'</div>'+
   '<div class="field"><label>Оплата по дням недели, %</label><div class="grid7">'+WD.map((d,i)=>'<div class="field" style="gap:2px"><label for="cd'+i+'" style="text-align:center">'+d+'</label><input id="cd'+i+'" name="d'+i+'" type="number" min="0" value="'+r.day[i]+'"></div>').join('')+'</div>'+
-  '<p class="muted small">Если день, праздник и переработка дают разный процент, берётся больший.</p></div>'+
+  '<p class="muted small">Если день, праздник и переработка дают разный процент, берётся больший. Праздники отмечаются внизу вкладки «Компании».</p></div>'+
   btnRow('Сохранить',id?'<div style="flex:1"></div><button class="btn danger" type="button" data-act="companyDelete" data-arg="'+id+'">Удалить</button>':'')));
 }
 let siteDraft=null;
@@ -719,8 +720,11 @@ function sitesModal(cid){
   '<button class="btn" type="button" data-act="siteNew">+ Добавить объект</button>'+btnRow('Сохранить')));
 }
 function holModal(){
-  openModal(formWrap('hol','','<h2>Добавить день</h2>'+fld('hd','Дата','<input id="hd" name="date" type="date" required value="'+today+'">')+fld('hn','Название','<input id="hn" name="name" placeholder="Например: Песах">')+
-  fld('ht','Тип','<select id="ht" name="type"><option value="holiday">Праздник</option><option value="eve">Канун праздника</option></select>')+btnRow('Добавить')));
+  const cs=sortedCompanies();
+  openModal(formWrap('hol','','<h2>Праздник / особый день</h2>'+fld('hd','Дата','<input id="hd" name="date" type="date" required value="'+today+'">')+fld('hn','Название','<input id="hn" name="name" placeholder="Например: Песах">')+
+  fld('hp','Оплата за этот день, %','<input id="hp" name="pct" type="number" min="100" max="400" step="5" required value="150">')+
+  '<div class="field"><label>Для каких компаний</label>'+cs.map(([id,c])=>'<label class="row" style="gap:8px;font-weight:400"><input type="checkbox" name="co" value="'+id+'" checked style="width:auto"> '+esc(c.name)+'</label>').join('')+'</div>'+
+  '<p class="muted small">Если в этот день и так платят больше (например, суббота 150% или переработка), берётся больший процент.</p>'+btnRow('Добавить')));
 }
 function workerModal(id){
   const w=id?S.workers[id]:{code:'',name:'',phone:'',email:'',companyId:(S.repCompany!=='all'&&S.repCompany)||(scopedCompanies()[0]||[])[0]||'',rate:'',travel:'',active:true};
@@ -840,7 +844,7 @@ async function doExport(){
 const XLSX_MIME='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 function b64(buf){const u=new Uint8Array(buf);let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s);}
 const loadScript=src=>new Promise((ok,no)=>{const x=document.createElement('script');x.src=src;x.onload=ok;x.onerror=()=>no(new Error('load '+src));document.head.appendChild(x);});
-async function xlLib(){if(!window.ExcelJS)await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js');if(!window.TabelReports)await loadScript('report.js?v=2');return [window.ExcelJS,window.TabelReports];}
+async function xlLib(){if(!window.ExcelJS)await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js');if(!window.TabelReports)await loadScript('report.js?v=4');return [window.ExcelJS,window.TabelReports];}
 const PRESET_JUMBO={norm:9,ot1Hours:24,ot1:125,ot2:125},PRESET_DHL={norm:8.6,ot1Hours:2,ot1:125,ot2:150};
 const PRESET_COMPANIES=[['Zara','week'],['Jumbo Ashdod','week',PRESET_JUMBO],['Jumbo Rishon','week',PRESET_JUMBO],['Jumbo Haifa','week',PRESET_JUMBO],['Puda Rishon','week'],['Puda Tel Aviv','week'],['Герцлия','week'],['FedEx','month'],['Logistic Care','month'],['DHL','month',PRESET_DHL,'he'],['Amid','month']];
 function presetMissing(){const have=new Set(Object.values(S.companies).map(c=>String(c.name||'').trim().toLowerCase()));return PRESET_COMPANIES.filter(x=>!have.has(x[0].toLowerCase()));}
@@ -849,7 +853,8 @@ function xlWorker(wid,from,to){
   const days=m.days.slice().reverse().filter(d=>d.H>=1/60).map(d=>{
     const sh=d.shifts.filter(s=>s.end&&s.end>s.start);const st=Math.min(...sh.map(s=>s.start)),en=Math.max(...sh.map(s=>s.end));const base=parseDay(d.key).getTime();
     sh.forEach(s=>{if(s.siteId)sites[s.siteId]=(sites[s.siteId]||0)+1;});
-    const b={b100:0,b125:0,b150:0};Object.keys(d.buckets).forEach(k=>{const p=Number(k),h=d.buckets[k];if(p<=100)b.b100+=h*p/100;else if(p<=125)b.b125+=h*p/125;else b.b150+=h*p/150;});
+    const b={b100:0,b125:0,b150:0};const hi=Object.keys(d.buckets).map(Number).filter(p=>p>125);const one=hi.length===1?hi[0]:0;
+    Object.keys(d.buckets).forEach(k=>{const p=Number(k),h=d.buckets[k];if(p<=100)b.b100+=h*p/100;else if(p<=125)b.b125+=h*p/125;else b.b150+=one?h:h*p/150;});if(one&&one!==150)b.k150=one/100;
     return Object.assign({date:d.key,in:Math.round((st-base)/60000),out:Math.round((en-base)/60000),brMin:Math.max(0,Math.round((en-st)/60000-d.H*60)),H:d.H,hol:d.hol||null},b);
   });
   const top=Object.keys(sites).sort((a,b)=>sites[b]-sites[a])[0];const site=top&&(c.sites||[]).find(x=>x.id===top);
@@ -861,14 +866,11 @@ const fileSafe=s=>String(s).replace(/[^\wа-яА-ЯёЁא-ת-]+/g,'_');
 function periodTag(){const [a,b]=periodRange();return S.period.mode==='month'?S.period.month:a+'_'+b;}
 function xlModal(){
   const cs=scopedCompanies();if(!cs.length){toast('Нет компаний');return;}
-  const sel=S.repCompany!=='all'?S.repCompany:cs[0][0];
-  openModal('<h2>Скачать Excel · '+esc(periodLabel())+'</h2><p class="muted small">Период — тот, что выбран вверху отчёта (месяц, неделя или свои даты).</p>'+
-  (cs.length>1?'<button class="btn big" data-act="xl" data-arg="companies">📊 Сводка по всем компаниям<br><span class="small" style="font-weight:400">часы и деньги по каждой компании — для закрытия месяца</span></button>':'')+
-  fld('xlc','Компания','<select id="xlc">'+cs.map(([id,c])=>'<option value="'+id+'"'+(id===sel?' selected':'')+'>'+esc(c.name)+(c.payPeriod==='week'?' · неделя':' · месяц')+'</option>').join('')+'</select>')+
-  '<button class="btn big primary" data-act="xl" data-arg="month">📅 Отчёт за период<br><span class="small" style="font-weight:400">сводка по работникам + лист на каждого (для недельных компаний — ещё лист «По неделям»)</span></button>'+
-  '<button class="btn big" data-act="xl" data-arg="week">🗓 Недельная сетка<br><span class="small" style="font-weight:400">вход / выход / часы по дням, лист на каждую неделю</span></button>'+
-  '<button class="btn" data-act="export">Все смены подробно (CSV)</button>'+
-  '<div class="row"><button class="btn" data-act="closeModal">Закрыть</button></div>');
+  const list=S.repCompany!=='all'?cs.filter(([id])=>id===S.repCompany):cs;
+  openModal('<h2>Скачать Excel · '+esc(periodLabel())+'</h2><p class="muted small">Период — тот, что выбран вверху отчёта. <b>Отчёт</b> — сводка + лист на каждого работника (у недельных компаний ещё лист «По неделям»). <b>Недели</b> — сетка вход / выход / часы.</p>'+
+  (cs.length>1&&S.repCompany==='all'?'<button class="btn big primary" data-act="xl" data-arg="companies:">📊 Сводка по всем компаниям</button>':'')+
+  '<div>'+list.map(([id,c])=>'<div class="list-item"><div class="grow"><b>'+esc(c.name)+'</b><div class="muted small">'+(c.payPeriod==='week'?'зарплата каждую неделю':'зарплата раз в месяц')+'</div></div><button class="btn sm primary" data-act="xl" data-arg="month:'+id+'">Отчёт</button><button class="btn sm" data-act="xl" data-arg="week:'+id+'">Недели</button></div>').join('')+'</div>'+
+  '<div class="row"><button class="btn sm ghost" data-act="export">Все смены подробно (CSV)</button><div style="flex:1"></div><button class="btn" data-act="closeModal">Закрыть</button></div>');
 }
 let xlBusy=false;
 async function doXlsx(kind,cid){
@@ -877,7 +879,7 @@ async function doXlsx(kind,cid){
     const [EX,R]=await xlLib();const [from,to]=periodRange();let wb,name;
     if(kind==='companies'){
       const rows=scopedCompanies().map(([id,c])=>{const ws=xlCompanyWorkers(id,from,to);const o={company:c.name,payPeriod:c.payPeriod==='week'?'week':'month',workers:ws.filter(x=>x.days.length).length,H:0,h125:0,h150:0,pay:0,travel:0,plus:0,minus:0};
-        ws.forEach(x=>{x.days.forEach(d=>{o.H+=d.H;o.h125+=d.b125;o.h150+=d.b150;o.pay+=x.rate*(d.b100+1.25*d.b125+1.5*d.b150);});o.travel+=x.travelSum||0;o.plus+=x.plus||0;o.minus+=x.minus||0;});return o;});
+        ws.forEach(x=>{x.days.forEach(d=>{o.H+=d.H;o.h125+=d.b125;o.h150+=d.b150;o.pay+=x.rate*(d.b100+1.25*d.b125+(d.k150||1.5)*d.b150);});o.travel+=x.travelSum||0;o.plus+=x.plus||0;o.minus+=x.minus||0;});return o;});
       wb=R.companies(EX,{lang:'ru',from,to,rows});name='Сводка_по_компаниям_'+periodTag()+'.xlsx';
     }else{
       const c=S.companies[cid];if(!c)throw new Error('no company');const lang=c.lang==='he'?'he':'ru';const ws=xlCompanyWorkers(cid,from,to);
@@ -886,7 +888,7 @@ async function doXlsx(kind,cid){
         const weeks=[];let k=weekStartOf(from);while(k<=to){const dates=[0,1,2,3,4,5,6].map(i=>addDays(k,i));weeks.push({dates,workers:xlCompanyWorkers(cid,dates[0]<from?from:dates[0],dates[6]>to?to:dates[6])});k=addDays(k,7);}
         wb=R.weekly(EX,{lang,company:c.name,weeks:weeks.filter(w=>w.workers.length)});name=fileSafe(c.name)+'_недели_'+periodTag()+'.xlsx';
       }else{
-        wb=R.monthly(EX,{lang,company:c.name,from,to,holidays:S.holidays,byWeeks:c.payPeriod==='week',subtitle:lang==='he'?'דוח מאפליקציית «Табель»':'Отчёт из приложения «Табель»',workers:ws});name=fileSafe(c.name)+'_'+periodTag()+'.xlsx';
+        wb=R.monthly(EX,{lang,company:c.name,from,to,holidays:Object.fromEntries(Object.entries(S.holidays).filter(([,h])=>holApplies(h,cid))),byWeeks:c.payPeriod==='week',subtitle:lang==='he'?'דוח מאפליקציית «Табель»':'Отчёт из приложения «Табель»',workers:ws});name=fileSafe(c.name)+'_'+periodTag()+'.xlsx';
       }
     }
     const buf=await wb.xlsx.writeBuffer();
@@ -961,20 +963,7 @@ const ACT={
   holAdd(){holModal();},
   holAll(){S.showAllHol=!S.showAllHol;render();},
   holDel(k){const days=Object.assign({},S.holidays);delete days[k];safe(()=>B.put('settings','holidays',{days}),'Удалено');},
-  async holLoad(){
-    toast('Загружаем праздники…');const y=new Date().getFullYear();const days=Object.assign({},S.holidays);let added=0;
-    try{
-      for(const yr of [y,y+1]){
-        const res=await fetch('https://www.hebcal.com/hebcal?v=1&cfg=json&maj=on&mod=on&i=on&year='+yr);const j=await res.json();
-        const items=j.items||[];const yt=new Set(items.filter(x=>x.yomtov).map(x=>x.date.slice(0,10)));
-        items.forEach(x=>{const d=String(x.date).slice(0,10);
-          if(x.yomtov||/^Yom HaAtzma/.test(x.title)){if(!days[d])added++;days[d]={name:x.title,type:'holiday'};}
-          else if(/^Erev /.test(x.title)&&yt.has(addDays(d,1))&&!yt.has(d)){if(!days[d])added++;days[d]={name:x.title,type:'eve'};}
-        });
-      }
-      await B.put('settings','holidays',{days});toast('Готово: добавлено '+added+' дн. на '+y+'–'+(y+1)+' гг.');
-    }catch(e){console.error(e);toast(String(e&&e.code||'').includes('permission')?t('eNoRights'):'Не удалось загрузить. Добавьте праздники вручную.');}
-  },
+  holClear(){confirmModal('Удалить все праздники из списка?','Удалить все',()=>safe(()=>B.put('settings','holidays',{days:{}}),'Список праздников очищен'));},
   async lockMonth(how){
     const m=S.period.month;const ids=S.repCompany==='all'?scopedCompanies().map(([id])=>id):[S.repCompany];
     const go=()=>safe(async()=>{for(const id of ids){const c=S.companies[id];const l=new Set(Array.isArray(c.locked)?c.locked:[]);how==='lock'?l.add(m):l.delete(m);await patch('companies',id,{locked:[...l].sort()});}},how==='lock'?'Месяц закрыт':'Месяц открыт для правок');
@@ -989,7 +978,10 @@ const ACT={
   actAs(id){S.me=id;S.asAdminPreview=true;S.view='worker';S.month=monthKey(new Date());syncSubs();render();window.scrollTo(0,0);},
   export(){closeModal();doExport();},
   xlModal(){xlModal();},
-  xl(kind){const el=document.getElementById('xlc');const cid=el?el.value:null;closeModal();doXlsx(kind,cid);},
+  repPick(){const a=adm();const it=(id,l)=>'<button class="btn'+(S.repCompany===id?' primary':'')+'" data-act="repSet" data-arg="'+id+'">'+esc(l)+'</button>';
+    openModal('<h2>Компания</h2><div style="display:flex;flex-direction:column;gap:8px">'+it('all',a.all?'Все компании':'Все мои компании')+scopedCompanies().map(([id,c])=>it(id,c.name)).join('')+'</div><div class="row"><button class="btn ghost" data-act="closeModal">Закрыть</button></div>');},
+  repSet(id){S.repCompany=id;closeModal();render();},
+  xl(arg){const [kind,cid]=String(arg).split(':');closeModal();doXlsx(kind,cid||null);},
   presetAdd(){const miss=presetMissing();if(!miss.length)return;safe(async()=>{for(const [name,pay,rules,lang] of miss){await put('companies',newId('companies'),{name,createdAt:Date.now(),payPeriod:pay,lang:lang||'ru',rules:Object.assign({},DEFAULT_RULES,rules||{}),sites:[],locked:[]});}},'Добавлено компаний: '+miss.length);},
   copyCsv(){const x=document.getElementById('csvbox');if(!x)return;const done=()=>toast('Скопировано, вставьте в Excel');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(x.value).then(done,()=>{x.focus();x.select();document.execCommand('copy');done();});else{x.focus();x.select();document.execCommand('copy');done();}},
   closeModal(){closeModal();},
@@ -1011,8 +1003,8 @@ const FORM={
     finally{S.busy=false;render();}
   },
   company(fd,f){
-    const id=f.dataset.id||newId('companies');const num=k=>Number(fd.get(k));
-    const rules={norm:num('norm'),ot1Hours:num('ot1Hours'),ot1:num('ot1'),ot2:num('ot2'),breakMin:num('breakMin')||0,holiday:num('holiday')||150,eve:num('eve')||125,maxShiftH:num('maxShiftH')||12,day:[0,1,2,3,4,5,6].map(i=>num('d'+i)||100)};
+    const id=f.dataset.id||newId('companies');const num=k=>Number(fd.get(k));const r0=rulesOf(S.companies[id]);
+    const rules={norm:num('norm'),ot1Hours:num('ot1Hours'),ot1:num('ot1'),ot2:num('ot2'),breakMin:num('breakMin')||0,holiday:r0.holiday,eve:r0.eve,maxShiftH:num('maxShiftH')||12,day:[0,1,2,3,4,5,6].map(i=>num('d'+i)||100)};
     const data=Object.assign({},f.dataset.id?S.companies[id]:{createdAt:Date.now()},{name:String(fd.get('name')).trim(),rules,payPeriod:fd.get('payPeriod')==='week'?'week':'month',lang:fd.get('lang')==='he'?'he':'ru'});
     closeModal();safe(()=>put('companies',id,data),'Сохранено');
   },
@@ -1022,7 +1014,10 @@ const FORM={
     const sites=d.sites.map(s=>{const o={id:s.id,name:s.name,radius:Number(s.radius)||200};if(isFinite(s.lat)&&isFinite(s.lng)){o.lat=s.lat;o.lng=s.lng;}return o;});
     closeModal();siteDraft=null;safe(()=>patch('companies',d.cid,{sites}),'Объекты сохранены');
   },
-  hol(fd){const d=String(fd.get('date')||'');if(!d)return;const days=Object.assign({},S.holidays,{[d]:{name:String(fd.get('name')||'').trim()||(fd.get('type')==='eve'?'Канун праздника':'Праздник'),type:fd.get('type')==='eve'?'eve':'holiday'}});closeModal();safe(()=>B.put('settings','holidays',{days}),'Добавлено');},
+  hol(fd){const d=String(fd.get('date')||'');if(!d)return;const co=fd.getAll('co').map(String);if(!co.length){toast('Выберите хотя бы одну компанию');return;}
+    const all=sortedCompanies().every(([id])=>co.includes(id));const pct=Math.max(100,Number(fd.get('pct'))||150);
+    const v={name:String(fd.get('name')||'').trim()||'Праздник',pct};if(!all)v.companies=co;
+    const days=Object.assign({},S.holidays,{[d]:v});closeModal();safe(()=>B.put('settings','holidays',{days}),'Добавлено');},
   adj(fd,f){
     const err=x=>{document.getElementById('aerr').textContent=x;};
     const wid=f.dataset.worker;const w=S.workers[wid]||{};const kind=String(fd.get('kind'));const amt=Number(fd.get('amount'));const date=String(fd.get('date')||'');
