@@ -567,7 +567,7 @@ function adminReport(){
   const anyTravel=rows.some(r=>r.m.travel),anyAdj=rows.some(r=>r.m.plus||r.m.minus);
   let h=periodBar()+'<div class="row"><div class="field" style="flex:1;min-width:180px"><label for="repc">Компания</label><select id="repc" data-change="repCompany"><option value="all">'+(a.all?'Все компании':'Все мои компании')+'</option>'+
   scopedCompanies().map(([id,c])=>'<option value="'+id+'"'+(S.repCompany===id?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></div>'+
-  '<button class="btn" data-act="export" style="align-self:flex-end">Скачать для Excel</button></div>';
+  '<button class="btn primary" data-act="xlModal" style="align-self:flex-end">Скачать Excel</button></div>';
   if(S.period.mode==='month'&&a.all&&scopedCompanies().length){
     const ids=S.repCompany==='all'?scopedCompanies().map(([id])=>id):[S.repCompany];const allLocked=ids.every(id=>isLocked(id,S.period.month));
     h+='<div class="row"><button class="btn sm'+(allLocked?'':' danger')+'" data-act="lockMonth" data-arg="'+(allLocked?'unlock':'lock')+'">'+(allLocked?'🔓 Открыть месяц для правок':'🔒 Закрыть месяц')+'</button><span class="muted small">'+(allLocked?'Месяц закрыт: смены и доплаты не меняются.':'После выплаты закройте месяц, чтобы ничего не поменялось задним числом.')+'</span></div>';
@@ -667,11 +667,14 @@ function adminCompanies(){
   const a=adm();
   let h='<div class="row between"><p class="muted small">У каждой компании свои правила переработок, доплат и объекты.</p>'+(a.all?'<button class="btn primary" data-act="companyForm">+ Компания</button>':'')+'</div>';
   const cs=scopedCompanies();
+  const miss=a.owner?presetMissing():[];
+  if(miss.length)h+='<section class="card"><h2>Ваши компании</h2><p class="small">Добавить одним нажатием: '+miss.map(x=>esc(x[0])+' <span class="muted">('+(x[1]==='week'?'неделя':'месяц')+')</span>').join(', ')+'.</p><p class="muted small">Уже существующие компании с таким названием пропускаются. Правила переработок потом можно поправить в «Изменить».</p><div class="row"><button class="btn primary" data-act="presetAdd">Добавить '+miss.length+' '+plural(miss.length,'компанию','компании','компаний')+'</button></div></section>';
   if(!cs.length)h+='<p class="empty">Компаний пока нет.</p>';
   cs.forEach(([id,c])=>{const r=rulesOf(c);const n=Object.values(S.workers).filter(w=>w.companyId===id).length;
     const special=r.day.map((p,i)=>p!==100?WD[i]+' '+p+'%':null).filter(Boolean).join(', ');
     const mg=managersOf(id).map(w=>esc(w.name)).join(', ');const sites=c.sites||[];
     h+='<section class="card"><div class="row between"><h2>'+esc(c.name)+'</h2>'+(a.all?'<div class="row"><button class="btn sm" data-act="sitesForm" data-arg="'+id+'">Объекты</button><button class="btn sm" data-act="companyForm" data-arg="'+id+'">Изменить</button></div>':'')+'</div>'+
+    '<p class="small"><b>Зарплата:</b> '+(c.payPeriod==='week'?'каждую неделю (недельный и месячный отчёт)':'раз в месяц')+' · отчёт '+(c.lang==='he'?'на иврите':'на русском')+'</p>'+
     '<p class="small"><b>Старшие:</b> '+(mg||'<span class="muted">не назначены</span>')+'</p>'+
     '<p class="small"><b>Объекты:</b> '+(sites.length?sites.map(s=>esc(s.name)+(isFinite(s.lat)?' 📍':'')).join(', '):'<span class="muted">не добавлены</span>')+'</p>'+
     '<p class="small">Норма '+r.norm+' ч в день, дальше '+r.ot1Hours+' ч по '+r.ot1+'%, потом '+r.ot2+'%.</p>'+
@@ -692,6 +695,8 @@ function companyModal(id){
   const c=id?S.companies[id]:{name:''};const r=rulesOf(c);
   openModal(formWrap('company','data-id="'+(id||'')+'"','<h2>'+(id?'Компания':'Новая компания')+'</h2>'+
   fld('cname','Название','<input id="cname" name="name" required value="'+esc(c.name)+'">')+
+  '<div class="grid2">'+fld('cpay','Зарплата','<select id="cpay" name="payPeriod"><option value="month"'+(c.payPeriod!=='week'?' selected':'')+'>Раз в месяц</option><option value="week"'+(c.payPeriod==='week'?' selected':'')+'>Каждую неделю</option></select>')+
+  fld('clang','Язык отчёта Excel','<select id="clang" name="lang"><option value="ru"'+(c.lang!=='he'?' selected':'')+'>Русский</option><option value="he"'+(c.lang==='he'?' selected':'')+'>עברית</option></select>')+'</div>'+
   '<div class="grid2">'+fld('cnorm','Обычных часов в день','<input id="cnorm" name="norm" type="number" step="0.1" min="0" value="'+r.norm+'">')+fld('cbreak','Авто-перерыв, мин (смены > 6 ч)','<input id="cbreak" name="breakMin" type="number" min="0" value="'+r.breakMin+'">')+'</div>'+
   '<div class="grid2">'+fld('cot1h','Первые часы переработки','<input id="cot1h" name="ot1Hours" type="number" step="0.5" min="0" value="'+r.ot1Hours+'">')+fld('cot1','…оплата, %','<input id="cot1" name="ot1" type="number" min="100" value="'+r.ot1+'">')+'</div>'+
   '<div class="grid2">'+fld('cot2','Дальше переработка, %','<input id="cot2" name="ot2" type="number" min="100" value="'+r.ot2+'">')+fld('cmax','Смена «забыта» после, ч','<input id="cmax" name="maxShiftH" type="number" min="1" max="48" value="'+r.maxShiftH+'">')+'</div>'+
@@ -809,26 +814,85 @@ function buildCsv(){
   if(adjRows.length){out.push([]);out.push(['Доплаты и вычеты']);out.push(['ID','Имя','Дата','Тип','Сумма ₪','Комментарий']);adjRows.forEach(r=>out.push(r));}
   return '﻿'+out.map(r=>r.map(q).join(',')).join('\r\n');
 }
-async function shareFile(name,text){
-  const P=window.Capacitor&&window.Capacitor.Plugins;
+async function shareFile(name,text,mime){
+  const P=window.Capacitor&&window.Capacitor.Plugins;const bin=typeof text!=='string';mime=mime||'text/csv';
   if(isNative()){
     if(P&&P.Filesystem&&P.Share){
-      try{const r=await P.Filesystem.writeFile({path:name,data:text,directory:'CACHE',encoding:'utf8'});await P.Share.share({title:name,url:r.uri,dialogTitle:'Отчёт для Excel'});return true;}
+      try{const r=await P.Filesystem.writeFile(bin?{path:name,data:b64(text),directory:'CACHE'}:{path:name,data:text,directory:'CACHE',encoding:'utf8'});await P.Share.share({title:name,url:r.uri,dialogTitle:'Отчёт для Excel'});return true;}
       catch(e){if(/cancel/i.test(String(e&&(e.message||e.code)||'')))return true;console.error(e);}
     }
     return false;
   }
   const mobile=/iPhone|iPad|Android/i.test(navigator.userAgent);
   if(mobile){
-    try{const f=new File([text],name,{type:'text/csv'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return true;}}
+    try{const f=new File([text],name,{type:mime});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return true;}}
     catch(e){if(e&&e.name==='AbortError')return true;console.error(e);}
   }
-  try{const blob=new Blob([text],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);return true;}catch(e){return false;}
+  try{const blob=new Blob([text],{type:bin?mime:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);return true;}catch(e){return false;}
 }
 async function doExport(){
   const csv=buildCsv();const [pa,pb]=periodRange();const name='tabel-'+pa+'_'+pb+(S.repCompany!=='all'?'-'+companyName(S.repCompany).replace(/[^\wа-яА-ЯёЁ-]+/g,'_'):'')+'.csv';
   const ok=await shareFile(name,csv);
   if(!ok)openModal('<h2>Данные для Excel</h2><p class="muted small">Скачивание здесь не сработало. Нажмите «Копировать» и вставьте в Excel или Google Таблицы.</p><textarea id="csvbox" rows="8" readonly>'+esc(csv.replace('\ufeff','').replace(/,/g,'\t'))+'</textarea><div class="row"><button class="btn primary" data-act="copyCsv">Копировать</button><button class="btn" data-act="closeModal">Закрыть</button></div>');
+}
+
+/* ---------- Excel-отчёты (ExcelJS + report.js) ---------- */
+const XLSX_MIME='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+function b64(buf){const u=new Uint8Array(buf);let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s);}
+const loadScript=src=>new Promise((ok,no)=>{const x=document.createElement('script');x.src=src;x.onload=ok;x.onerror=()=>no(new Error('load '+src));document.head.appendChild(x);});
+async function xlLib(){if(!window.ExcelJS)await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js');if(!window.TabelReports)await loadScript('report.js?v=2');return [window.ExcelJS,window.TabelReports];}
+const PRESET_JUMBO={norm:9,ot1Hours:24,ot1:125,ot2:125},PRESET_DHL={norm:8.6,ot1Hours:2,ot1:125,ot2:150};
+const PRESET_COMPANIES=[['Zara','week'],['Jumbo Ashdod','week',PRESET_JUMBO],['Jumbo Rishon','week',PRESET_JUMBO],['Jumbo Haifa','week',PRESET_JUMBO],['Puda Rishon','week'],['Puda Tel Aviv','week'],['Герцлия','week'],['FedEx','month'],['Logistic Care','month'],['DHL','month',PRESET_DHL,'he'],['Amid','month']];
+function presetMissing(){const have=new Set(Object.values(S.companies).map(c=>String(c.name||'').trim().toLowerCase()));return PRESET_COMPANIES.filter(x=>!have.has(x[0].toLowerCase()));}
+function xlWorker(wid,from,to){
+  const w=S.workers[wid]||{};const m=calc(wid,from,to);const sites={};const c=S.companies[w.companyId]||{};
+  const days=m.days.slice().reverse().filter(d=>d.H>=1/60).map(d=>{
+    const sh=d.shifts.filter(s=>s.end&&s.end>s.start);const st=Math.min(...sh.map(s=>s.start)),en=Math.max(...sh.map(s=>s.end));const base=parseDay(d.key).getTime();
+    sh.forEach(s=>{if(s.siteId)sites[s.siteId]=(sites[s.siteId]||0)+1;});
+    const b={b100:0,b125:0,b150:0};Object.keys(d.buckets).forEach(k=>{const p=Number(k),h=d.buckets[k];if(p<=100)b.b100+=h*p/100;else if(p<=125)b.b125+=h*p/125;else b.b150+=h*p/150;});
+    return Object.assign({date:d.key,in:Math.round((st-base)/60000),out:Math.round((en-base)/60000),brMin:Math.max(0,Math.round((en-st)/60000-d.H*60)),H:d.H,hol:d.hol||null},b);
+  });
+  const top=Object.keys(sites).sort((a,b)=>sites[b]-sites[a])[0];const site=top&&(c.sites||[]).find(x=>x.id===top);
+  const notes=k=>m.adj.filter(a=>k>0?a.amount>=0:a.amount<0).map(a=>a.note).filter(Boolean).join('; ');
+  return {code:w.code||'',name:w.name||'?',group:site?site.name:'',rate:Number(w.rate)||0,travel:m.travelRate,travelDays:m.travelDays,travelSum:m.travel,plus:m.plus,plusNote:notes(1),minus:m.minus,minusNote:notes(-1),days};
+}
+function xlCompanyWorkers(cid,from,to){return sortedWorkers().filter(([,w])=>!isPendingReg(w)&&w.companyId===cid).map(([id])=>xlWorker(id,from,to)).filter(x=>x.days.length||x.plus||x.minus);}
+const fileSafe=s=>String(s).replace(/[^\wа-яА-ЯёЁא-ת-]+/g,'_');
+function periodTag(){const [a,b]=periodRange();return S.period.mode==='month'?S.period.month:a+'_'+b;}
+function xlModal(){
+  const cs=scopedCompanies();if(!cs.length){toast('Нет компаний');return;}
+  const sel=S.repCompany!=='all'?S.repCompany:cs[0][0];
+  openModal('<h2>Скачать Excel · '+esc(periodLabel())+'</h2><p class="muted small">Период — тот, что выбран вверху отчёта (месяц, неделя или свои даты).</p>'+
+  (cs.length>1?'<button class="btn big" data-act="xl" data-arg="companies">📊 Сводка по всем компаниям<br><span class="small" style="font-weight:400">часы и деньги по каждой компании — для закрытия месяца</span></button>':'')+
+  fld('xlc','Компания','<select id="xlc">'+cs.map(([id,c])=>'<option value="'+id+'"'+(id===sel?' selected':'')+'>'+esc(c.name)+(c.payPeriod==='week'?' · неделя':' · месяц')+'</option>').join('')+'</select>')+
+  '<button class="btn big primary" data-act="xl" data-arg="month">📅 Отчёт за период<br><span class="small" style="font-weight:400">сводка по работникам + лист на каждого (для недельных компаний — ещё лист «По неделям»)</span></button>'+
+  '<button class="btn big" data-act="xl" data-arg="week">🗓 Недельная сетка<br><span class="small" style="font-weight:400">вход / выход / часы по дням, лист на каждую неделю</span></button>'+
+  '<button class="btn" data-act="export">Все смены подробно (CSV)</button>'+
+  '<div class="row"><button class="btn" data-act="closeModal">Закрыть</button></div>');
+}
+let xlBusy=false;
+async function doXlsx(kind,cid){
+  if(xlBusy)return;xlBusy=true;toast("Готовим файл…");
+  try{
+    const [EX,R]=await xlLib();const [from,to]=periodRange();let wb,name;
+    if(kind==='companies'){
+      const rows=scopedCompanies().map(([id,c])=>{const ws=xlCompanyWorkers(id,from,to);const o={company:c.name,payPeriod:c.payPeriod==='week'?'week':'month',workers:ws.filter(x=>x.days.length).length,H:0,h125:0,h150:0,pay:0,travel:0,plus:0,minus:0};
+        ws.forEach(x=>{x.days.forEach(d=>{o.H+=d.H;o.h125+=d.b125;o.h150+=d.b150;o.pay+=x.rate*(d.b100+1.25*d.b125+1.5*d.b150);});o.travel+=x.travelSum||0;o.plus+=x.plus||0;o.minus+=x.minus||0;});return o;});
+      wb=R.companies(EX,{lang:'ru',from,to,rows});name='Сводка_по_компаниям_'+periodTag()+'.xlsx';
+    }else{
+      const c=S.companies[cid];if(!c)throw new Error('no company');const lang=c.lang==='he'?'he':'ru';const ws=xlCompanyWorkers(cid,from,to);
+      if(!ws.length){toast('За этот период у '+c.name+' нет смен');return;}
+      if(kind==='week'){
+        const weeks=[];let k=weekStartOf(from);while(k<=to){const dates=[0,1,2,3,4,5,6].map(i=>addDays(k,i));weeks.push({dates,workers:xlCompanyWorkers(cid,dates[0]<from?from:dates[0],dates[6]>to?to:dates[6])});k=addDays(k,7);}
+        wb=R.weekly(EX,{lang,company:c.name,weeks:weeks.filter(w=>w.workers.length)});name=fileSafe(c.name)+'_недели_'+periodTag()+'.xlsx';
+      }else{
+        wb=R.monthly(EX,{lang,company:c.name,from,to,holidays:S.holidays,byWeeks:c.payPeriod==='week',subtitle:lang==='he'?'דוח מאפליקציית «Табель»':'Отчёт из приложения «Табель»',workers:ws});name=fileSafe(c.name)+'_'+periodTag()+'.xlsx';
+      }
+    }
+    const buf=await wb.xlsx.writeBuffer();
+    const ok=await shareFile(name,buf,XLSX_MIME);if(!ok)toast('Не удалось сохранить файл. Попробуйте на компьютере.');
+  }catch(e){console.error(e);toast('Не получилось сделать Excel: '+(e.message||e));}
+  finally{xlBusy=false;}
 }
 
 /* ---------- actions ---------- */
@@ -923,7 +987,10 @@ const ACT={
   regReject(id){const w=S.workers[id]||{};confirmModal('Отклонить регистрацию '+(w.name||'')+'?','Отклонить',()=>safe(()=>patch('workers',id,{status:'rejected',active:false}),'Регистрация отклонена'));},
   openTable(id){S.tab='report';S.repWorker=id;render();window.scrollTo(0,0);},
   actAs(id){S.me=id;S.asAdminPreview=true;S.view='worker';S.month=monthKey(new Date());syncSubs();render();window.scrollTo(0,0);},
-  export(){doExport();},
+  export(){closeModal();doExport();},
+  xlModal(){xlModal();},
+  xl(kind){const el=document.getElementById('xlc');const cid=el?el.value:null;closeModal();doXlsx(kind,cid);},
+  presetAdd(){const miss=presetMissing();if(!miss.length)return;safe(async()=>{for(const [name,pay,rules,lang] of miss){await put('companies',newId('companies'),{name,createdAt:Date.now(),payPeriod:pay,lang:lang||'ru',rules:Object.assign({},DEFAULT_RULES,rules||{}),sites:[],locked:[]});}},'Добавлено компаний: '+miss.length);},
   copyCsv(){const x=document.getElementById('csvbox');if(!x)return;const done=()=>toast('Скопировано, вставьте в Excel');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(x.value).then(done,()=>{x.focus();x.select();document.execCommand('copy');done();});else{x.focus();x.select();document.execCommand('copy');done();}},
   closeModal(){closeModal();},
   confirmOk(){const f=pendingConfirm;pendingConfirm=null;closeModal();if(f)f();}
@@ -946,7 +1013,7 @@ const FORM={
   company(fd,f){
     const id=f.dataset.id||newId('companies');const num=k=>Number(fd.get(k));
     const rules={norm:num('norm'),ot1Hours:num('ot1Hours'),ot1:num('ot1'),ot2:num('ot2'),breakMin:num('breakMin')||0,holiday:num('holiday')||150,eve:num('eve')||125,maxShiftH:num('maxShiftH')||12,day:[0,1,2,3,4,5,6].map(i=>num('d'+i)||100)};
-    const data=Object.assign({},f.dataset.id?S.companies[id]:{createdAt:Date.now()},{name:String(fd.get('name')).trim(),rules});
+    const data=Object.assign({},f.dataset.id?S.companies[id]:{createdAt:Date.now()},{name:String(fd.get('name')).trim(),rules,payPeriod:fd.get('payPeriod')==='week'?'week':'month',lang:fd.get('lang')==='he'?'he':'ru'});
     closeModal();safe(()=>put('companies',id,data),'Сохранено');
   },
   sites(){
