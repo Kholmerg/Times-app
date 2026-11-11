@@ -133,6 +133,12 @@ tfoot td{font-weight:700;border-bottom:0}
 .seg{display:flex;gap:4px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px}
 .seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;font-weight:600;cursor:pointer;color:var(--muted)}
 .seg button.on{background:var(--ink);color:var(--bg)}
+.dd{position:relative}
+.ddbtn{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;font:inherit;font-size:15px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);cursor:pointer;text-align:start}
+.ddback{position:fixed;inset:0;z-index:20}
+.ddlist{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:21;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:280px;overflow:auto;padding:4px}
+.ddlist button{display:block;width:100%;text-align:start;font:inherit;font-size:15px;padding:9px 10px;border:0;border-radius:8px;background:transparent;color:var(--ink);cursor:pointer}
+.ddlist button.on{background:var(--accent-soft);font-weight:700}
 .langs{display:flex;gap:2px;border:1px solid var(--line);border-radius:99px;padding:2px}
 .lang{border:0;background:transparent;border-radius:99px;padding:4px 8px;font-size:12px;font-weight:700;cursor:pointer;color:var(--muted)}
 .lang.on{background:var(--ink);color:var(--bg)}
@@ -413,7 +419,7 @@ const snap=s=>s?{start:s.start,end:s.end||null,breakMin:Math.round(shiftWork(s,s
 function langSwitch(){return '<div class="langs">'+[['ru','RU'],['he','עב'],['en','EN']].map(([k,l])=>'<button class="lang'+(LANG===k?' on':'')+'" data-act="lang" data-arg="'+k+'">'+l+'</button>').join('')+'</div>';}
 function topBar(){
   let right='';const r=myRights();
-  if(S.asAdminPreview)right='<button class="btn ghost" data-act="backAdmin">← Выйти из просмотра</button>';
+  if(S.asAdminPreview)right=(S.view!=='admin'?langSwitch():'')+'<button class="btn ghost" data-act="backAdmin">← Выйти из просмотра</button>';
   else if(S.uid){
     if(S.view!=='admin')right+=langSwitch();
     if(S.view==='worker'&&r)right+='<button class="btn ghost" data-act="goAdmin">'+t('adminPanel')+'</button>';
@@ -567,7 +573,8 @@ function adminReport(){
   const a=adm();const rows=reportRows();
   const pcts=[...new Set(rows.flatMap(r=>Object.keys(r.m.buckets).map(Number)))].sort((x,y)=>x-y);if(!pcts.includes(100))pcts.unshift(100);
   const anyTravel=rows.some(r=>r.m.travel),anyAdj=rows.some(r=>r.m.plus||r.m.minus);
-  let h=periodBar()+'<div class="row"><div class="field" style="flex:1;min-width:180px"><label>Компания</label><button class="btn" data-act="repPick" style="justify-content:space-between;width:100%">'+esc(S.repCompany==='all'?(a.all?'Все компании':'Все мои компании'):companyName(S.repCompany))+' <span aria-hidden="true">▾</span></button></div>'+
+  let h=periodBar()+'<div class="row"><div class="field" style="flex:1;min-width:180px"><label>Компания</label><div class="dd"><button class="ddbtn" data-act="repPick">'+esc(S.repCompany==='all'?(a.all?'Все компании':'Все мои компании'):companyName(S.repCompany))+'<span aria-hidden="true">▾</span></button>'+
+  (S.repOpen?'<div class="ddback" data-act="repClose"></div><div class="ddlist">'+[['all',a.all?'Все компании':'Все мои компании']].concat(scopedCompanies().map(([id,c])=>[id,c.name])).map(([id,l])=>'<button class="'+(S.repCompany===id?'on':'')+'" data-act="repSet" data-arg="'+id+'">'+esc(l)+'</button>').join('')+'</div>':'')+'</div></div>'+
   '<button class="btn primary" data-act="xlModal" style="align-self:flex-end">Скачать Excel</button></div>';
   if(S.period.mode==='month'&&a.all&&scopedCompanies().length){
     const ids=S.repCompany==='all'?scopedCompanies().map(([id])=>id):[S.repCompany];const allLocked=ids.every(id=>isLocked(id,S.period.month));
@@ -978,9 +985,9 @@ const ACT={
   actAs(id){S.me=id;S.asAdminPreview=true;S.view='worker';S.month=monthKey(new Date());syncSubs();render();window.scrollTo(0,0);},
   export(){closeModal();doExport();},
   xlModal(){xlModal();},
-  repPick(){const a=adm();const it=(id,l)=>'<button class="btn'+(S.repCompany===id?' primary':'')+'" data-act="repSet" data-arg="'+id+'">'+esc(l)+'</button>';
-    openModal('<h2>Компания</h2><div style="display:flex;flex-direction:column;gap:8px">'+it('all',a.all?'Все компании':'Все мои компании')+scopedCompanies().map(([id,c])=>it(id,c.name)).join('')+'</div><div class="row"><button class="btn ghost" data-act="closeModal">Закрыть</button></div>');},
-  repSet(id){S.repCompany=id;closeModal();render();},
+  repPick(){S.repOpen=!S.repOpen;render();},
+  repClose(){S.repOpen=false;render();},
+  repSet(id){S.repCompany=id;S.repOpen=false;render();},
   xl(arg){const [kind,cid]=String(arg).split(':');closeModal();doXlsx(kind,cid||null);},
   presetAdd(){const miss=presetMissing();if(!miss.length)return;safe(async()=>{for(const [name,pay,rules,lang] of miss){await put('companies',newId('companies'),{name,createdAt:Date.now(),payPeriod:pay,lang:lang||'ru',rules:Object.assign({},DEFAULT_RULES,rules||{}),sites:[],locked:[]});}},'Добавлено компаний: '+miss.length);},
   copyCsv(){const x=document.getElementById('csvbox');if(!x)return;const done=()=>toast('Скопировано, вставьте в Excel');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(x.value).then(done,()=>{x.focus();x.select();document.execCommand('copy');done();});else{x.focus();x.select();document.execCommand('copy');done();}},
