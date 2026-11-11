@@ -134,6 +134,16 @@ tfoot td{font-weight:700;border-bottom:0}
 .seg button{flex:1;border:0;background:transparent;border-radius:9px;padding:8px 6px;font-weight:600;cursor:pointer;color:var(--muted)}
 .seg button.on{background:var(--ink);color:var(--bg)}
 .dd{position:relative}
+.profile .ava{width:52px;height:52px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;font-size:18px;flex:none}
+.htiles{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.htile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:start;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);cursor:pointer;min-height:104px}
+.htile .ti{font-size:20px;line-height:1}
+.htile .tv{font-family:var(--font-display);font-weight:700;font-size:20px;margin-top:6px}
+.htile .tt{font-size:13px;font-weight:600}
+.htile .ts{font-size:12px;color:var(--muted)}
+.htile.wide{grid-column:1/-1;min-height:0}
+.htile.alert{border-color:var(--warn);background:var(--warn-soft)}
+.htile:active{transform:scale(.98)}
 .ddbtn{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;font:inherit;font-size:15px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);cursor:pointer;text-align:start}
 .ddback{position:fixed;inset:0;z-index:20}
 .ddlist{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:21;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.14);max-height:280px;overflow:auto;padding:4px}
@@ -299,7 +309,7 @@ const S={
   ready:false,slow:false,error:'',demo:false,uid:null,email:'',profileLoaded:false,busy:false,busyClock:false,
   companies:{},workers:{},shifts:{},requests:{},adj:{},audit:{},holidays:{},
   view:'start',me:null,asAdminPreview:false,
-  tab:'now',month:monthKey(new Date()),repCompany:'all',repWorker:null,
+  tab:'home',month:monthKey(new Date()),repCompany:'all',repWorker:null,
   period:{mode:'month',month:monthKey(new Date()),week:weekStartOf(today),from:addDays(today,-13),to:today},
   login:{id:'',pin:''},loginErr:'',showAllHol:false
 };
@@ -513,12 +523,37 @@ function workerView(){
 }
 
 /* ---------- admin ---------- */
+function adminHome(){
+  const a=adm();const me=S.workers[S.uid]||{};const now=Date.now();
+  const name=me.name||S.email||'';const initials=String(name).replace(/@.*/,'').split(/[\s._-]+/).filter(Boolean).slice(0,2).map(x=>x[0].toUpperCase()).join('')||'?';
+  const role=a.owner?'Главный администратор':a.role==='super'?'Администратор всех компаний':'Старший · '+(scopedCompanies().map(([,c])=>c.name).join(', ')||'компании не назначены');
+  const open=Object.values(S.shifts).filter(s=>!s.end&&wScope(s.workerId));
+  const forgot=open.filter(s=>now-s.start>rulesOf(S.companies[s.companyId]).maxShiftH*3600000).length;
+  const req=pending().length,regs=pendingRegs().length;const cs=scopedCompanies();
+  const ws=sortedWorkers().filter(([,w])=>!isPendingReg(w)&&inScope(w.companyId)&&w.active!==false);
+  const [pa,pb]=periodRange();let H=0,P=0;ws.forEach(([id])=>{const m=calc(id,pa,pb);H+=m.totalH;P+=m.total;});
+  const hr=new Date().getHours();const hello=hr<5?'Доброй ночи':hr<12?'Доброе утро':hr<18?'Добрый день':'Добрый вечер';
+  const tile=(tab,icon,val,title,sub,alert)=>'<button class="htile'+(alert?' alert':'')+'" data-act="tab" data-arg="'+tab+'"><span class="ti" aria-hidden="true">'+icon+'</span><span class="tv">'+val+'</span><span class="tt">'+title+'</span>'+(sub?'<span class="ts">'+sub+'</span>':'')+'</button>';
+  let h='<section class="card profile"><div class="row" style="gap:14px;align-items:center;flex-wrap:nowrap"><div class="ava">'+esc(initials)+'</div><div class="grow"><div class="muted small">'+hello+'</div><h2 style="margin:0">'+esc(String(name).replace(/@.*/,''))+'</h2><div class="muted small">'+esc(role)+'</div></div></div>'+
+    '<div class="muted small">'+esc(S.email)+' · '+fmtDay(today)+'</div>'+
+    '<div class="row">'+(me.companyId?'<button class="btn sm" data-act="myTable">Мой табель</button>':'')+'<button class="btn sm ghost" data-act="logout">Выйти</button></div></section>';
+  if(forgot)h+='<div class="banner" style="background:var(--stop-soft);color:var(--stop)">'+forgot+' '+plural(forgot,'смена открыта','смены открыты','смен открыты')+' слишком долго.<button class="btn sm" data-act="tab" data-arg="now">Посмотреть</button></div>';
+  if(a.all&&!cs.length)h+='<div class="banner">Начните с компаний: добавьте их, потом работников.<button class="btn sm" data-act="tab" data-arg="companies">Перейти</button></div>';
+  h+='<div class="htiles">'+
+    tile('report','📊',money(P),'Зарплаты · '+esc(periodLabel()),hmH(H)+' ч · нажмите, чтобы открыть отчёт','').replace('class="htile','class="htile wide')+
+    tile('now','⏱',open.length,'Сейчас на смене',forgot?'забытых: '+forgot:'',forgot)+
+    tile('requests','✉️',req,'Запросы на правку',req?'ждут ответа':'всё разобрано',req)+
+    tile('workers','👥',ws.length,'Работники',regs?'новых заявок: '+regs:'',regs)+
+    tile('companies','🏢',cs.length,'Компании','','')+
+    '</div>';
+  return h;
+}
 function adminView(){
   const a=adm(),n=pending().length;
-  const tabs=[['now','Сейчас',''],['report','Отчёт',''],['requests','Запросы',n],['workers','Работники',pendingRegs().length],['companies','Компании','']];
-  let h='<div><h1>Админ-панель</h1>'+(a.all?'':'<p class="muted small">Ваши компании: '+(scopedCompanies().map(([,c])=>esc(c.name)).join(', ')||'не назначены')+'</p>')+'</div><nav class="tabs" role="tablist">'+tabs.map(([k,l,c])=>'<button class="tab" role="tab" aria-selected="'+(S.tab===k)+'" data-act="tab" data-arg="'+k+'">'+l+(c?'<span class="cnt">'+c+'</span>':'')+'</button>').join('')+'</nav>';
-  if(a.all&&!Object.keys(S.companies).length&&S.tab!=='companies')h+='<div class="banner">Начните с вкладки «Компании»: добавьте свои компании, потом работников.<button class="btn sm" data-act="tab" data-arg="companies">Перейти</button></div>';
-  h+=({now:adminNow,report:adminReport,requests:adminRequests,workers:adminWorkers,companies:adminCompanies}[S.tab]||adminNow)();
+  const tabs=[['home','Главная',''],['now','Сейчас',''],['report','Отчёт',''],['requests','Запросы',n],['workers','Работники',pendingRegs().length],['companies','Компании','']];
+  let h='<div>'+(S.tab==='home'?'':'<h1>Админ-панель</h1>')+(S.tab==='home'||a.all?'':'<p class="muted small">Ваши компании: '+(scopedCompanies().map(([,c])=>esc(c.name)).join(', ')||'не назначены')+'</p>')+'</div><nav class="tabs" role="tablist">'+tabs.map(([k,l,c])=>'<button class="tab" role="tab" aria-selected="'+(S.tab===k)+'" data-act="tab" data-arg="'+k+'">'+l+(c?'<span class="cnt">'+c+'</span>':'')+'</button>').join('')+'</nav>';
+  if(a.all&&!Object.keys(S.companies).length&&S.tab!=='companies'&&S.tab!=='home')h+='<div class="banner">Начните с вкладки «Компании»: добавьте свои компании, потом работников.<button class="btn sm" data-act="tab" data-arg="companies">Перейти</button></div>';
+  h+=({home:adminHome,now:adminNow,report:adminReport,requests:adminRequests,workers:adminWorkers,companies:adminCompanies}[S.tab]||adminHome)();
   return h;
 }
 function geoPills(s){
@@ -913,7 +948,7 @@ async function doClockIn(loc,siteId){
 function approveLockedCheck(cid,ms){if(isLocked(cid,monthKey(new Date(ms)))){toast('Этот месяц закрыт. Сначала откройте его в отчёте.');return true;}return false;}
 const ACT={
   lang(l){LANG=l;store.set('tabel.lang',l);render();},
-  goAdmin(){S.view='admin';S.tab='now';S.repWorker=null;syncSubs();render();window.scrollTo(0,0);},
+  goAdmin(){S.view='admin';S.tab='home';S.repWorker=null;syncSubs();render();window.scrollTo(0,0);},
   backAdmin(){S.view='admin';S.asAdminPreview=false;S.me=S.uid;S.repCompany='all';syncSubs();render();},
   logout(){S.asAdminPreview=false;S.login={id:'',pin:''};B.signOut();},
   forgot(){forgotModal();},
@@ -1260,7 +1295,7 @@ async function createProfile(p,owner){
 function onAuthUser(u){
   if(meUnsub){meUnsub();meUnsub=null;}
   SRC.users={};S.profileLoaded=false;S.asAdminPreview=false;
-  S.uid=u?u.uid:null;S.email=u?u.email:'';S.me=S.uid;S.month=monthKey(new Date());S.tab='now';S.repWorker=null;S.repCompany='all';
+  S.uid=u?u.uid:null;S.email=u?u.email:'';S.me=S.uid;S.month=monthKey(new Date());S.tab='home';S.repWorker=null;S.repCompany='all';
   subKey='';syncSubs();
   if(!u){S.view='start';render();return;}
   let first=true;
