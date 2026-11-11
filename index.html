@@ -809,9 +809,26 @@ function buildCsv(){
   if(adjRows.length){out.push([]);out.push(['Доплаты и вычеты']);out.push(['ID','Имя','Дата','Тип','Сумма ₪','Комментарий']);adjRows.forEach(r=>out.push(r));}
   return '﻿'+out.map(r=>r.map(q).join(',')).join('\r\n');
 }
-function doExport(){
+async function shareFile(name,text){
+  const P=window.Capacitor&&window.Capacitor.Plugins;
+  if(isNative()){
+    if(P&&P.Filesystem&&P.Share){
+      try{const r=await P.Filesystem.writeFile({path:name,data:text,directory:'CACHE',encoding:'utf8'});await P.Share.share({title:name,url:r.uri,dialogTitle:'Отчёт для Excel'});return true;}
+      catch(e){if(/cancel/i.test(String(e&&(e.message||e.code)||'')))return true;console.error(e);}
+    }
+    return false;
+  }
+  const mobile=/iPhone|iPad|Android/i.test(navigator.userAgent);
+  if(mobile){
+    try{const f=new File([text],name,{type:'text/csv'});if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:name});return true;}}
+    catch(e){if(e&&e.name==='AbortError')return true;console.error(e);}
+  }
+  try{const blob=new Blob([text],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);return true;}catch(e){return false;}
+}
+async function doExport(){
   const csv=buildCsv();const [pa,pb]=periodRange();const name='tabel-'+pa+'_'+pb+(S.repCompany!=='all'?'-'+companyName(S.repCompany).replace(/[^\wа-яА-ЯёЁ-]+/g,'_'):'')+'.csv';
-  try{const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1500);}catch(e){toast('Не удалось скачать файл');}
+  const ok=await shareFile(name,csv);
+  if(!ok)openModal('<h2>Данные для Excel</h2><p class="muted small">Скачивание здесь не сработало. Нажмите «Копировать» и вставьте в Excel или Google Таблицы.</p><textarea id="csvbox" rows="8" readonly>'+esc(csv.replace('\ufeff','').replace(/,/g,'\t'))+'</textarea><div class="row"><button class="btn primary" data-act="copyCsv">Копировать</button><button class="btn" data-act="closeModal">Закрыть</button></div>');
 }
 
 /* ---------- actions ---------- */
@@ -907,6 +924,7 @@ const ACT={
   openTable(id){S.tab='report';S.repWorker=id;render();window.scrollTo(0,0);},
   actAs(id){S.me=id;S.asAdminPreview=true;S.view='worker';S.month=monthKey(new Date());syncSubs();render();window.scrollTo(0,0);},
   export(){doExport();},
+  copyCsv(){const x=document.getElementById('csvbox');if(!x)return;const done=()=>toast('Скопировано, вставьте в Excel');if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(x.value).then(done,()=>{x.focus();x.select();document.execCommand('copy');done();});else{x.focus();x.select();document.execCommand('copy');done();}},
   closeModal(){closeModal();},
   confirmOk(){const f=pendingConfirm;pendingConfirm=null;closeModal();if(f)f();}
 };
