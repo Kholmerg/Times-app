@@ -4,12 +4,12 @@
 const GREEN='FF17614F',SOFT='FFE1EEE8',ZEBRA='FFF6F7F3',GOLD='FFF7EDD3',GREY='FF5B685F',LINE='FFDCE1D8',WHITE='FFFFFFFF';
 const L={
   ru:{summary:'Сводка',group:'Участок',num:'№',name:'Имя',hours:'Всего часов',h100:'Часы 100%',h125:'Часы 125%',h150:'Часы 150%',h150p:'Часы 150% и праздник',pay:'Зарплата за часы',travel:'Проезд',plus:'Доплаты',minus:'Вычеты',total:'К выплате',
-      date:'Дата',dow:'День',in:'Вход',out:'Выход',br:'Перерыв, мин',h:'Часы',rate:'Ставка, ₪/ч',dayPay:'Сумма за день',note:'Примечание',totalMonth:'Итого за период',days:'Рабочих дней',
+      date:'Дата',dow:'День',in:'Вход',out:'Выход',br:'Перерыв, мин',h:'Часы',rate:'Ставка, ₪/ч',rateDay:'Фикс за день, ₪',rateFixed:'Фикс в месяц',fixedLine:'Фиксированная оплата за месяц ({r} ₪)',fixDayShort:'фикс {r}/день',fixMonthShort:'фикс/мес',dayPay:'Сумма за день',note:'Примечание',totalMonth:'Итого за период',days:'Рабочих дней',
       grand:'ИТОГО',subtotal:'Итого по участку',company:'Компания',workers:'Работников',period:'Период',payPeriod:'Оплата',weekly:'понедельно',monthly:'помесячно',
       dows:['Вс','Пн','Вт','Ср','Чт','Пт','Сб'],fri:'Пятница',sat:'Суббота',hol:'Праздник',eve:'Канун праздника',hoursH:'Часы',rateH:'Ставка',payH:'Зарплата',totalPay:'ИТОГО ЗП',
       h100w:'100% (будни)',h125w:'125% (сверх нормы, пятница)',h150w:'150% (суббота, праздники)',travelDays:'Проезд ({n} дн. × {r} ₪)',companiesTitle:'Сводка по компаниям',byWeeks:'По неделям',monthTotal:'Итого за месяц',weeksNote:'Недели с воскресенья по субботу; первая и последняя неделя обрезаны по границам месяца.'},
   he:{summary:'סיכום',group:'אזור',num:'מס׳',name:'שם',hours:'סך שעות',h100:'שעות רגילות',h125:'שעות נוספות 125%',h150:'שעות נוספות 150%',h150p:'150% / חג',pay:'שכר מחושב',travel:'נסיעות',plus:'תוספות',minus:'ניכויים',total:'סך שכר',
-      date:'תאריך',dow:'יום',in:'כניסה',out:'יציאה',br:'הפסקה דק׳',h:'שעות',rate:'תעריף',dayPay:'שכר יומי',note:'הערה',totalMonth:'סה״כ לתקופה',days:'ימי עבודה',
+      date:'תאריך',dow:'יום',in:'כניסה',out:'יציאה',br:'הפסקה דק׳',h:'שעות',rate:'תעריף',rateDay:'קבוע ליום, ₪',rateFixed:'קבוע לחודש',fixedLine:'שכר חודשי קבוע ({r} ₪)',fixDayShort:'קבוע {r}/יום',fixMonthShort:'קבוע/חודש',dayPay:'שכר יומי',note:'הערה',totalMonth:'סה״כ לתקופה',days:'ימי עבודה',
       grand:'סה״כ',subtotal:'סה״כ אזור',company:'חברה',workers:'עובדים',period:'תקופה',payPeriod:'תשלום',weekly:'שבועי',monthly:'חודשי',
       dows:['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'],fri:'שישי',sat:'שבת',hol:'חג',eve:'ערב חג',hoursH:'שעות',rateH:'תעריף',payH:'שכר',totalPay:'סה״כ שכר',
       h100w:'100%',h125w:'125%',h150w:'150%',travelDays:'נסיעות ({n} ימים × {r} ₪)',companiesTitle:'סיכום לפי חברות',byWeeks:'לפי שבועות',monthTotal:'סה״כ לחודש',weeksNote:'שבוע מיום א׳ עד שבת; השבוע הראשון והאחרון חתוכים לפי גבולות החודש.'}
@@ -36,7 +36,10 @@ function special(day,t){if(!day)return '';const h=day.hol;if(h)return (h.name||(
 const rateOf=(w,d)=>d&&d.rate!=null?d.rate:(w.rate||0);
 const k150=d=>Number(d.k150)>0?Number(d.k150):1.5;
 const dayPay=(rate,d)=>rate*(d.b100+1.25*d.b125+k150(d)*d.b150);
-function payOf(w){return w.days.reduce((s,d)=>s+dayPay(rateOf(w,d),d),0);}
+const ptOf=w=>w.payType==='day'||w.payType==='month'?w.payType:'hour';
+const wDayPay=(w,d)=>{const pt=ptOf(w);if(pt==='day')return d.H>=1/60?rateOf(w,d):0;if(pt==='month')return 0;return dayPay(rateOf(w,d),d);};
+function payOf(w){return w.days.reduce((s,d)=>s+wDayPay(w,d),0);}
+const fixedOf=w=>ptOf(w)==='month'?Number(w.fixedSum)||0:0;
 
 /* ---------- Отчёт за месяц: сводка + лист на каждого работника ---------- */
 function monthly(ExcelJS,o){
@@ -51,7 +54,7 @@ function monthly(ExcelJS,o){
   o.workers.forEach(w=>{
     const name=safeName(w.name+(w.code?' '+w.code:''),used);
     const ws=wb.addWorksheet(name,{views:[{rightToLeft:rtl,state:'frozen',ySplit:3,showGridLines:false}],pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
-    const cols=[t.date,t.dow,t.in,t.out,t.br,t.h,t.rate,t.h100,t.h125,w.days.some(d=>k150(d)!==1.5)?t.h150p:t.h150,t.dayPay,t.note];
+    const pt=ptOf(w);const cols=[t.date,t.dow,t.in,t.out,t.br,t.h,pt==='day'?t.rateDay:pt==='month'?t.rateFixed:t.rate,t.h100,t.h125,w.days.some(d=>k150(d)!==1.5)?t.h150p:t.h150,t.dayPay,t.note];
     ws.columns=[12,6,9,9,9,9,10,10,10,10,13,20].map(width=>({width}));
     ws.mergeCells(1,1,1,cols.length);const tc=ws.getCell(1,1);tc.value=w.name+' — '+(w.group||o.company);tc.font=font({bold:true,size:14,color:{argb:WHITE}});tc.fill=fill(GREEN);tc.alignment={horizontal:'center',vertical:'middle'};ws.getRow(1).height=26;
     ws.mergeCells(2,1,2,cols.length);const sc=ws.getCell(2,1);sc.value=o.company+' · '+t.period+': '+fmtD(o.from)+' – '+fmtD(o.to)+(w.code?' · '+t.num+' '+w.code:'');sc.font=font({color:{argb:GREY}});sc.alignment={horizontal:'center'};
@@ -65,9 +68,9 @@ function monthly(ExcelJS,o){
       if(d){
         row.getCell(3).value=d.in/1440;row.getCell(4).value=(d.out%1440)/1440;row.getCell(3).numFmt=row.getCell(4).numFmt=TIME;
         row.getCell(5).value=d.brMin||null;
-        row.getCell(6).value=d.H;row.getCell(7).value=rateOf(w,d);
+        row.getCell(6).value=d.H;row.getCell(7).value=pt==='month'?null:rateOf(w,d);
         row.getCell(8).value=d.b100;row.getCell(9).value=d.b125;row.getCell(10).value=d.b150;
-        row.getCell(11).value=F(`G${r}*(H${r}+I${r}*1.25+J${r}*${k150(d)})`,r2(dayPay(rateOf(w,d),d)));
+        row.getCell(11).value=pt==='hour'?F(`G${r}*(H${r}+I${r}*1.25+J${r}*${k150(d)})`,r2(dayPay(rateOf(w,d),d))):pt==='day'?F(`IF(F${r}>0,G${r},0)`,r2(wDayPay(w,d))):null;
       }
       row.getCell(12).value=special(d||{date:k,hol:(o.holidays||{})[k]},t)||null;
       for(let c=1;c<=12;c++){const x=row.getCell(c);x.font=font();x.border=border;if(r%2===1)x.fill=fill(ZEBRA);}
@@ -86,14 +89,15 @@ function monthly(ExcelJS,o){
     // extras
     let er=tot+1;const extra={};
     const addLine=(label,val,key)=>{const row=ws.getRow(er);ws.mergeCells(er,1,er,10);row.getCell(1).value=label;row.getCell(1).alignment={horizontal:rtl?'left':'right'};row.getCell(11).value=val;row.getCell(11).numFmt=MONEY;row.getCell(1).font=row.getCell(11).font=font();extra[key]=er;er++;};
+    if(fixedOf(w))addLine(t.fixedLine.replace('{r}',w.rate),r2(fixedOf(w)),'fixed');
     if(w.travelSum)addLine(t.travelDays.replace('{n}',w.travelDays).replace('{r}',w.travel),r2(w.travelSum),'travel');
     if(w.plus)addLine(t.plus+(w.plusNote?' · '+w.plusNote:''),r2(w.plus),'plus');
     if(w.minus)addLine(t.minus+(w.minusNote?' · '+w.minusNote:''),-r2(w.minus),'minus');
     let totalRow=tot;
     if(er>tot+1){const row=ws.getRow(er);ws.mergeCells(er,1,er,10);row.getCell(1).value=t.total;row.getCell(1).alignment={horizontal:rtl?'left':'right'};
-      row.getCell(11).value=F(`SUM(K${tot}:K${er-1})`,r2(pay+(w.travelSum||0)+(w.plus||0)-(w.minus||0)));row.getCell(11).numFmt=MONEY;
+      row.getCell(11).value=F(`SUM(K${tot}:K${er-1})`,r2(pay+fixedOf(w)+(w.travelSum||0)+(w.plus||0)-(w.minus||0)));row.getCell(11).numFmt=MONEY;
       row.getCell(1).font=font({bold:true});row.getCell(11).font=font({bold:true,color:{argb:GREEN}});row.getCell(11).fill=fill(SOFT);totalRow=er;}
-    info.push({w,name,tot,totalRow,extra,H,b1,b2,b3,pay});
+    info.push({w,name,tot,totalRow,extra,H,b1,b2,b3,pay:pay+fixedOf(w)});
   });
   // summary
   sv.mergeCells(1,1,1,4);const st=sv.getCell(1,1);st.value=o.company+' · '+fmtD(o.from)+' – '+fmtD(o.to);st.font=font({bold:true,size:14,color:{argb:GREEN}});
@@ -112,7 +116,7 @@ function monthly(ExcelJS,o){
       if(grouped)row.getCell(1).value=gname;
       row.getCell(1+off).value=x.w.code||'';row.getCell(2+off).value=x.w.name;
       row.getCell(3+off).value=F(q+'F'+x.tot,r2(x.H));row.getCell(4+off).value=F(q+'H'+x.tot,r2(x.b1));row.getCell(5+off).value=F(q+'I'+x.tot,r2(x.b2));row.getCell(6+off).value=F(q+'J'+x.tot,r2(x.b3));
-      row.getCell(7+off).value=F(q+'K'+x.tot,r2(x.pay));
+      row.getCell(7+off).value=x.extra.fixed?F(q+'K'+x.tot+'+'+q+'K'+x.extra.fixed,r2(x.pay)):F(q+'K'+x.tot,r2(x.pay));
       let c=8+off;
       if(anyTravel){row.getCell(c).value=x.extra.travel?F(q+'K'+x.extra.travel,r2(x.w.travelSum)):null;c++;}
       if(anyPlus){row.getCell(c).value=x.extra.plus?F(q+'K'+x.extra.plus,r2(x.w.plus)):null;c++;}
@@ -155,9 +159,9 @@ function weeksSheet(ws,o,t,info){
     row.getCell(1).value=x.w.code||null;row.getCell(2).value=x.w.name;
     let hT=0,pT=0;
     weeks.forEach(([a,b],i)=>{const c=3+i*2;const ds=x.w.days.filter(d=>d.date>=a&&d.date<=b);
-      const h=ds.reduce((s,d)=>s+d.H,0),p=ds.reduce((s,d)=>s+dayPay(rateOf(x.w,d),d),0);hT+=h;pT+=p;
+      const h=ds.reduce((s,d)=>s+d.H,0),fx=fixedOf(x.w)?fixedOf(x.w)*Math.round((parseDay(b)-parseDay(a))/864e5+1)/Math.round((parseDay(o.to)-parseDay(o.from))/864e5+1):0,p=ds.reduce((s,d)=>s+wDayPay(x.w,d),0)+fx;hT+=h;pT+=p;
       const crit=`${q}$A$4:$A$${last},">="&${dt(a)},${q}$A$4:$A$${last},"<="&${dt(b)}`;
-      row.getCell(c).value=F(`SUMIFS(${q}$F$4:$F$${last},${crit})`,r2(h));row.getCell(c+1).value=F(`SUMIFS(${q}$K$4:$K$${last},${crit})`,r2(p));});
+      row.getCell(c).value=F(`SUMIFS(${q}$F$4:$F$${last},${crit})`,r2(h));row.getCell(c+1).value=F(`SUMIFS(${q}$K$4:$K$${last},${crit})`+(fx?'+'+r2(fx):''),r2(p));});
     const hs=weeks.map((_,i)=>CL(3+i*2)+r).join('+'),ps=weeks.map((_,i)=>CL(4+i*2)+r).join('+');
     row.getCell(tc).value=F(hs,r2(hT));row.getCell(tc+1).value=F(ps,r2(pT));
     for(let c=1;c<=nC;c++){const z=row.getCell(c);z.font=font({size:9,bold:c>=tc});z.border=border;if(r%2===1)z.fill=fill(ZEBRA);if(c>=3)z.numFmt=c%2?HRS:MONEY;}
@@ -195,10 +199,12 @@ function weekly(ExcelJS,o){
       wk.dates.forEach((k,i)=>{const d=byDate[k];const cc=3+i*3;if(d){row.getCell(cc).value=d.in/1440;row.getCell(cc+1).value=(d.out%1440)/1440;row.getCell(cc+2).value=d.H/24;}[cc,cc+1].forEach(z=>row.getCell(z).numFmt=TIME);row.getCell(cc+2).numFmt=TSUM;});
       const b1=w.days.reduce((s,d)=>s+d.b100,0),b2=w.days.reduce((s,d)=>s+d.b125,0),b3=w.days.reduce((s,d)=>s+d.b150*k150(d)/1.5,0);
       row.getCell(24).value=b1/24;row.getCell(25).value=b2/24;row.getCell(26).value=b3/24;[24,25,26].forEach(z=>row.getCell(z).numFmt=TSUM);
-      row.getCell(27).value=w.rate||0;row.getCell(27).numFmt='#,##0.##';
-      row.getCell(28).value=F(`X${r}*24*AA${r}`,r2(b1*(w.rate||0)));row.getCell(29).value=F(`Y${r}*24*AA${r}*1.25`,r2(b2*(w.rate||0)*1.25));row.getCell(30).value=F(`Z${r}*24*AA${r}*1.5`,r2(b3*(w.rate||0)*1.5));
+      const pt=ptOf(w),fixedW=pt==='day'?w.days.filter(d=>d.H>=1/60).length*(w.rate||0):pt==='month'?fixedOf(w):0;
+      if(pt==='hour'){row.getCell(27).value=w.rate||0;row.getCell(27).numFmt='#,##0.##';
+      row.getCell(28).value=F(`X${r}*24*AA${r}`,r2(b1*(w.rate||0)));row.getCell(29).value=F(`Y${r}*24*AA${r}*1.25`,r2(b2*(w.rate||0)*1.25));row.getCell(30).value=F(`Z${r}*24*AA${r}*1.5`,r2(b3*(w.rate||0)*1.5));}
+      else{row.getCell(27).value=pt==='day'?t.fixDayShort.replace('{r}',w.rate||0):t.fixMonthShort;row.getCell(28).value=r2(fixedW);}
       let cc=31;const vals={travel:w.travelSum||0,plus:w.plus||0,minus:-(w.minus||0)};extraCols.forEach(([key])=>{row.getCell(cc).value=vals[key]||null;row.getCell(cc).numFmt=MONEY;cc++;});
-      const pay=b1*(w.rate||0)+b2*(w.rate||0)*1.25+b3*(w.rate||0)*1.5+(w.travelSum||0)+(w.plus||0)-(w.minus||0);
+      const pay=(pt==='hour'?b1*(w.rate||0)+b2*(w.rate||0)*1.25+b3*(w.rate||0)*1.5:fixedW)+(w.travelSum||0)+(w.plus||0)-(w.minus||0);
       row.getCell(totCol).value=F(`SUM(${CL(28)}${r}:${CL(totCol-1)}${r})`,r2(pay));
       for(let z=1;z<=totCol;z++){const x=row.getCell(z);x.font=font({size:9});x.border=border;if(r%2===0)x.fill=fill(ZEBRA);if(z>=28&&z!==27)x.numFmt=MONEY;}
       row.getCell(1).font=font({size:10});row.getCell(totCol).font=font({bold:true});
