@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>Табель рабочего времени</title>
+<title>Timly — учёт рабочего времени</title>
 <meta name="theme-color" content="#17614f">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Табель">
+<meta name="apple-mobile-web-app-title" content="Timly">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -431,8 +431,8 @@ async function scheduleShiftReminder(start,maxH){
     const remH=Math.max(1,maxH-2);const now=Date.now();
     await ln.cancel({notifications:[{id:1001},{id:1002}]}).catch(()=>{});
     const list=[];
-    if(start+remH*3600000>now+60000)list.push({id:1001,title:'Табель',body:t('notifLong',{h:remH}),schedule:{at:new Date(start+remH*3600000)}});
-    if(start+maxH*3600000>now+60000)list.push({id:1002,title:'Табель',body:t('notifForgot',{h:maxH}),schedule:{at:new Date(start+maxH*3600000)}});
+    if(start+remH*3600000>now+60000)list.push({id:1001,title:'Timly',body:t('notifLong',{h:remH}),schedule:{at:new Date(start+remH*3600000)}});
+    if(start+maxH*3600000>now+60000)list.push({id:1002,title:'Timly',body:t('notifForgot',{h:maxH}),schedule:{at:new Date(start+maxH*3600000)}});
     if(list.length)await ln.schedule({notifications:list});
   }catch(e){console.error('notif',e);}
 }
@@ -458,7 +458,7 @@ function topBar(){
     if(S.view==='admin'&&r&&S.workers[S.uid]&&S.workers[S.uid].companyId)right+=A('<button class="btn ghost" data-act="myTable">Мой табель</button>');
     right+='<button class="btn ghost" data-act="logout">'+(S.view==='admin'?A('Выйти'):t('logout'))+'</button>';
   }else right+=langSwitch();
-  return '<div class="brand"><i aria-hidden="true"></i>Табель</div>'+(S.demo?A('<span class="pill warn">Демо: данные не сохраняются</span>'):'')+'<div class="sp"></div>'+right;
+  return '<div class="brand"><i aria-hidden="true"></i>Timly</div>'+(S.demo?A('<span class="pill warn">Демо: данные не сохраняются</span>'):'')+'<div class="sp"></div>'+right;
 }
 
 /* ---------- worker-facing screens ---------- */
@@ -913,7 +913,7 @@ async function doExport(){
 const XLSX_MIME='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 function b64(buf){const u=new Uint8Array(buf);let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s);}
 const loadScript=src=>new Promise((ok,no)=>{const x=document.createElement('script');x.src=src;x.onload=ok;x.onerror=()=>no(new Error('load '+src));document.head.appendChild(x);});
-async function xlLib(){if(!window.ExcelJS)await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js');if(!window.TabelReports)await loadScript('report.js?v=5');return [window.ExcelJS,window.TabelReports];}
+async function xlLib(){if(!window.ExcelJS)await loadScript('https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js');if(!window.TabelReports)await loadScript('report.js?v=6');return [window.ExcelJS,window.TabelReports];}
 const PRESET_JUMBO={norm:9,ot1Hours:24,ot1:125,ot2:125},PRESET_DHL={norm:8.6,ot1Hours:2,ot1:125,ot2:150};
 const PRESET_COMPANIES=[['Zara','week'],['Jumbo Ashdod','week',PRESET_JUMBO],['Jumbo Rishon','week',PRESET_JUMBO],['Jumbo Haifa','week',PRESET_JUMBO],['Puda Rishon','week'],['Puda Tel Aviv','week'],['Герцлия','week'],['FedEx','month'],['Logistic Care','month'],['DHL','month',PRESET_DHL,'he'],['Amid','month']];
 function presetMissing(){const have=new Set(Object.values(S.companies).map(c=>String(c.name||'').trim().toLowerCase()));return PRESET_COMPANIES.filter(x=>!have.has(x[0].toLowerCase()));}
@@ -957,7 +957,7 @@ async function doXlsx(kind,cid){
         const weeks=[];let k=weekStartOf(from);while(k<=to){const dates=[0,1,2,3,4,5,6].map(i=>addDays(k,i));weeks.push({dates,workers:xlCompanyWorkers(cid,dates[0]<from?from:dates[0],dates[6]>to?to:dates[6])});k=addDays(k,7);}
         wb=R.weekly(EX,{lang,company:c.name,weeks:weeks.filter(w=>w.workers.length)});name=fileSafe(c.name)+'_недели_'+periodTag()+'.xlsx';
       }else{
-        wb=R.monthly(EX,{lang,company:c.name,from,to,holidays:Object.fromEntries(Object.entries(S.holidays).filter(([,h])=>holApplies(h,cid))),byWeeks:c.payPeriod==='week',subtitle:lang==='he'?'דוח מאפליקציית «Табель»':'Отчёт из приложения «Табель»',workers:ws});name=fileSafe(c.name)+'_'+periodTag()+'.xlsx';
+        wb=R.monthly(EX,{lang,company:c.name,from,to,holidays:Object.fromEntries(Object.entries(S.holidays).filter(([,h])=>holApplies(h,cid))),byWeeks:c.payPeriod==='week',subtitle:lang==='he'?'דוח מאפליקציית Timly':'Отчёт из приложения Timly',workers:ws});name=fileSafe(c.name)+'_'+periodTag()+'.xlsx';
       }
     }
     const buf=await wb.xlsx.writeBuffer();
@@ -1347,7 +1347,7 @@ function onAuthUser(u){
 }
 
 /* ---------- start ---------- */
-const BUILD='20261115155132';
+const BUILD='20261123123844';
 async function checkUpdate(){try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(j.v&&j.v!==BUILD&&!location.search.includes('v='+j.v))location.replace(location.pathname+'?v='+encodeURIComponent(j.v)+location.hash);}catch(e){}}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate();});
 async function init(){

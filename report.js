@@ -43,7 +43,7 @@ const fixedOf=w=>ptOf(w)==='month'?Number(w.fixedSum)||0:0;
 
 /* ---------- Отчёт за месяц: сводка + лист на каждого работника ---------- */
 function monthly(ExcelJS,o){
-  const t=L[o.lang]||L.ru,rtl=o.lang==='he';const wb=new ExcelJS.Workbook();wb.creator='Табель';
+  const t=L[o.lang]||L.ru,rtl=o.lang==='he';const wb=new ExcelJS.Workbook();wb.creator='Timly';
   const used=new Set();const sumName=safeName(t.summary,used);
   const sv=wb.addWorksheet(sumName,{views:[{rightToLeft:rtl,state:'frozen',ySplit:3,showGridLines:false}]});
   const wkSheet=o.byWeeks?wb.addWorksheet(safeName(t.byWeeks,used),{views:[{rightToLeft:rtl,state:'frozen',xSplit:2,ySplit:4,showGridLines:false}]}):null;
@@ -175,7 +175,7 @@ function weeksSheet(ws,o,t,info){
 
 /* ---------- Отчёт за неделю: сетка, лист на каждую неделю ---------- */
 function weekly(ExcelJS,o){
-  const t=L[o.lang]||L.ru,rtl=o.lang==='he';const wb=new ExcelJS.Workbook();wb.creator='Табель';const used=new Set();
+  const t=L[o.lang]||L.ru,rtl=o.lang==='he';const wb=new ExcelJS.Workbook();wb.creator='Timly';const used=new Set();
   o.weeks.forEach(wk=>{
     const ws=wb.addWorksheet(safeName(fmtDM(wk.dates[0])+'–'+fmtDM(wk.dates[6]),used),{views:[{rightToLeft:rtl,state:'frozen',xSplit:2,ySplit:2,showGridLines:false}],pageSetup:{orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0}});
     const anyTravel=wk.workers.some(w=>w.travelSum),anyPlus=wk.workers.some(w=>w.plus),anyMinus=wk.workers.some(w=>w.minus);
@@ -220,7 +220,7 @@ function weekly(ExcelJS,o){
 
 /* ---------- Сводка по компаниям (для закрытия месяца) ---------- */
 function companies(ExcelJS,o){
-  const t=L[o.lang]||L.ru;const wb=new ExcelJS.Workbook();wb.creator='Табель';
+  const t=L[o.lang]||L.ru;const wb=new ExcelJS.Workbook();wb.creator='Timly';
   const ws=wb.addWorksheet(t.companiesTitle.slice(0,31),{views:[{state:'frozen',ySplit:3,showGridLines:false}]});
   ws.mergeCells(1,1,1,6);ws.getCell(1,1).value=t.companiesTitle+' · '+fmtD(o.from)+' – '+fmtD(o.to);ws.getCell(1,1).font=font({bold:true,size:14,color:{argb:GREEN}});
   const cols=[t.company,t.payPeriod,t.workers,t.hours,t.h125,t.h150,t.pay,t.travel,t.plus,t.minus,t.total];
