@@ -7,7 +7,7 @@
     "allowNavigation": ["kholmerg.github.io", "*.firebaseapp.com", "*.googleapis.com", "www.gstatic.com", "www.hebcal.com"]
   },
   "ios": {
-    "contentInset": "always",
+    "contentInset": "never",
     "scheme": "Tabel"
   },
   "plugins": {
