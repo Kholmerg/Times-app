@@ -470,8 +470,8 @@ function startView(){
   if(S.demo)h+=A('<div class="banner">Демо-режим: сайт не подключён к базе. Вход: <b>admin@demo.ru</b> / <b>123456</b>.</div>');
   h+='<section class="card"><h1>'+t('loginTitle')+'</h1><p class="muted">'+t('loginSub')+'</p>'+
   '<form data-form="login" class="card" style="padding:0;border:0;gap:10px">'+
-  fld('lid',t('loginId'),'<input id="lid" data-bind="id" dir="ltr" autocomplete="username" autocapitalize="off" placeholder="0001" value="'+esc(S.login.id)+'">')+
-  fld('lpin',t('password'),'<input id="lpin" data-bind="pin" dir="ltr" type="password" autocomplete="current-password" value="'+esc(S.login.pin)+'">')+
+  fld('lid',t('loginId'),'<input id="lid" name="username" data-bind="id" dir="ltr" autocomplete="username" autocapitalize="off" placeholder="0001" value="'+esc(S.login.id)+'">')+
+  fld('lpin',t('password'),'<input id="lpin" name="password" data-bind="pin" dir="ltr" type="password" autocomplete="current-password" value="'+esc(S.login.pin)+'">')+
   (S.loginErr?'<p class="err">'+esc(S.loginErr)+'</p>':'')+
   '<button class="btn primary big" type="submit"'+(S.busy?' disabled':'')+'>'+(S.busy?t('signingIn'):t('signIn'))+'</button></form>'+
   '<div class="row"><button class="btn ghost" data-act="forgot">'+t('forgot')+'</button></div>'+
@@ -824,7 +824,7 @@ function regModal(){
   fld('gname',t('name'),'<input id="gname" name="name" required autocomplete="name">')+
   (cs.length?fld('gcomp',t('company'),'<select id="gcomp" name="companyId">'+cs.map(([cid,c])=>'<option value="'+cid+'">'+esc(c.name)+'</option>').join('')+'</select>'):'<p class="banner">'+t('noCompanies')+'</p>')+
   fld('gphone',t('phone'),'<input id="gphone" name="phone" type="tel" dir="ltr" autocomplete="tel">')+
-  fld('gemail',t('email'),'<input id="gemail" name="email" type="email" dir="ltr" autocapitalize="off" autocomplete="email">')+
+  fld('gemail',t('email'),'<input id="gemail" name="email" type="email" dir="ltr" autocapitalize="off" autocomplete="username email">')+
   '<p class="muted small">'+t('regHint')+'</p>'+
   '<div class="grid2">'+fld('gpass',t('pass6'),'<input id="gpass" name="pass" type="password" dir="ltr" required minlength="6" autocomplete="new-password">')+fld('gpass2',t('again'),'<input id="gpass2" name="pass2" type="password" dir="ltr" required minlength="6" autocomplete="new-password">')+'</div>'+
   '<p class="err" id="gerr"></p>'+btnRow(t('send'))));
@@ -1352,7 +1352,7 @@ function onAuthUser(u){
 }
 
 /* ---------- start ---------- */
-const BUILD='20261125113025';
+const BUILD='20261125113727';
 async function checkUpdate(){try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(j.v&&j.v!==BUILD&&!location.search.includes('v='+j.v))location.replace(location.pathname+'?v='+encodeURIComponent(j.v)+location.hash);}catch(e){}}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate();});
 async function init(){
