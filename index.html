@@ -744,7 +744,7 @@ function adminCompanies(){
   const a=adm();
   let h=A('<div class="row between"><p class="muted small">У каждой компании свои правила переработок, доплат и объекты.</p>')+(a.all?A('<button class="btn primary" data-act="companyForm">+ Компания</button>'):'')+'</div>';
   const cs=scopedCompanies();
-  const miss=a.owner?presetMissing():[];
+  const miss=[];
   if(miss.length)h+=A('<section class="card"><h2>Ваши компании</h2><p class="small">Добавить одним нажатием: ')+miss.map(x=>esc(x[0])+' <span class="muted">('+(x[1]==='week'?A('неделя'):A('месяц'))+')</span>').join(', ')+A('.</p><p class="muted small">Уже существующие компании с таким названием пропускаются. Правила переработок потом можно поправить в «Изменить».</p><div class="row"><button class="btn primary" data-act="presetAdd">Добавить ')+miss.length+' '+plural(miss.length,A('компанию'),A('компании'),A('компаний'))+'</button></div></section>';
   if(!cs.length)h+=A('<p class="empty">Компаний пока нет.</p>');
   cs.forEach(([id,c])=>{const r=rulesOf(c);const n=Object.values(S.workers).filter(w=>w.companyId===id).length;
@@ -1364,7 +1364,7 @@ function onAuthUser(u){
 }
 
 /* ---------- start ---------- */
-const BUILD='20261125114905';
+const BUILD='20261125120621';
 async function checkUpdate(){try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();if(j.v&&j.v!==BUILD&&!location.search.includes('v='+j.v))location.replace(location.pathname+'?v='+encodeURIComponent(j.v)+location.hash);}catch(e){}}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkUpdate();});
 async function init(){
